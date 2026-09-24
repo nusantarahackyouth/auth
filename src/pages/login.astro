@@ -1,0 +1,47 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Icon } from "astro-icon/components";
+
+import RingBackground from "@/components/animation/RingBackground.astro";
+---
+
+<Layout title="Login">
+    <div class="relative min-h-screen overflow-hidden">
+        <section class="pointer-events-none absolute inset-0 z-0 opacity-[0.3]">
+            <RingBackground />
+        </section>
+        <section
+            class="relative z-10 p-8 py-16 flex min-h-screen w-full flex-col items-center justify-center gap-y-8"
+        >
+            <div class="flex justify-center items-center flex-col text-center -mt-8">
+                <h2 class="text-foreground/90 text-3xl -mb-1 ml-1">Nusantara</h2>
+                <h1 class="font-semibold text-5xl">Heck Ye<span class="text-primary">auth</span></h1>
+            </div>
+
+            <p class="text-lg">Welcome! Please sign in to continue.</p>
+
+            <Card class="w-full max-w-lg">
+                <CardContent>
+                    <Button class="w-full cursor-pointer" size="lg">
+                        <Icon name="simple-icons:google" class="-mb-px" />
+                        Continue with Google
+                    </Button>
+                </CardContent>
+            </Card>
+
+            <div class="flex justify-center items-center flex-col gap-y-4 text-center text-sm text-muted-foreground max-w-md">
+                <p class="font-medium [&_a]:hover:text-primary-2 [&_a]:underline grid grid-cols-9">
+                    <a href="/privacy" class="text-right col-span-4">Privacy Policy</a>
+                    <span class="mx-4">·</span>
+                    <a href="/terms" class="text-left col-span-4">Terms of Service</a>
+                </p>
+                <p class="[&_a]:text-primary-2">
+                    Having trouble logging in? Please contact one of our staff for help
+                    or contact via email to <a href="mailto:support@hackyouth.id">support@hackyouth.id</a>.
+                </p>
+            </div>
+        </section>
+    </div>
+</Layout>

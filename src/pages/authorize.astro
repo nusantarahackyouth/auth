@@ -1,0 +1,25 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
+
+import RingBackground from "@/components/animation/RingBackground.astro";
+---
+
+<Layout title="Authorize">
+    <div class="relative min-h-screen overflow-hidden">
+        <section class="pointer-events-none absolute inset-0 z-0 opacity-[0.3]">
+            <RingBackground />
+        </section>
+        <section
+            class="relative z-10 flex min-h-screen w-full flex-col items-center justify-center gap-y-4"
+        >
+            <Card>
+                <CardContent>
+                    <CardTitle>
+                        <h1>Did i do something fucked?</h1>
+                    </CardTitle>
+                </CardContent>
+            </Card>
+        </section>
+    </div>
+</Layout>

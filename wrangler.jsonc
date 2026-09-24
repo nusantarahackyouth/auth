@@ -1,14 +1,37 @@
 {
-	"$schema": "./node_modules/wrangler/config-schema.json",
-	"compatibility_date": "2026-09-21",
-	"compatibility_flags": ["global_fetch_strictly_public"],
-	"name": "heck-yeauth",
-	"main": "@astrojs/cloudflare/entrypoints/server",
-	"assets": {
-		"directory": "./dist",
-		"binding": "ASSETS"
-	},
-	"observability": {
-		"enabled": true
-	}
+    "$schema": "./node_modules/wrangler/config-schema.json",
+    "compatibility_date": "2026-09-21",
+    "compatibility_flags": ["global_fetch_strictly_public", "nodejs_compat"],
+    "name": "nhy-auth",
+    "main": "@astrojs/cloudflare/entrypoints/server",
+    "assets": {
+        "directory": "./dist",
+        "binding": "ASSETS",
+    },
+    "keep_vars": true,
+    "upload_source_maps": true,
+    "r2_buckets": [
+        {
+            "binding": "S3",
+            "bucket_name": "nhy-auth-storage"
+        }
+    ],
+    "hyperdrive": [
+        {
+            "binding": "HYPERDRIVE",
+            "id": "6fa61ffba65c4d268d9b4cd2d8dc55f2",
+        },
+    ],
+    "observability": {
+        "enabled": true,
+    },
+    "workers_dev": false,
+    "preview_urls": true,
+    "routes": [
+        {
+            "pattern": "auth.hackyouth.id",
+            "zone_name": "hackyouth.id",
+            "custom_domain": true
+        }
+    ]
 }

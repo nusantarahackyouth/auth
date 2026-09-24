@@ -1,0 +1,38 @@
+---
+import { ClientRouter } from "astro:transitions";
+import "@/styles/globals.css";
+
+const { title } = Astro.props;
+---
+
+<html lang="en" transition:animate="none">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="viewport" content="width=device-width" />
+		<title>{title ? `${title} - NHY Auth` : "NHY Auth"}</title>
+
+		<script>
+		    const storedTheme = localStorage.getItem("@nhy/theme");
+            const theme =
+                storedTheme === "light" || storedTheme === "dark"
+                    ? storedTheme
+                    : matchMedia("(prefers-color-scheme: dark)").matches
+                        ? "dark"
+                        : "light";
+
+            document.documentElement.classList.toggle("dark", theme === "dark");
+
+            document.addEventListener("astro:before-swap", (event) => {
+                const isDark = document.documentElement.classList.contains("dark");
+                event.newDocument.documentElement.classList.toggle("dark", isDark);
+            });
+		</script>
+
+		<ClientRouter />
+	</head>
+	<body>
+		<slot />
+	</body>
+</html>
