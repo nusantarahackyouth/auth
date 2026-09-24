@@ -42,13 +42,13 @@ export const auth = betterAuth({
             defaultRole: "user",
             bannedUserMessage: lang.BANNED_USER,
         }),
-        magicLink({
-            sendMagicLink: async ({ email, token }, ctx) => {
-                return sendMagicLinkEmail(email, token, ctx?.request);
-            },
-            expiresIn: 600,
-            disableSignUp: isSignupDisabled("magic"),
-        }),
+        // magicLink({
+        //     sendMagicLink: async ({ email, token }, ctx) => {
+        //         return sendMagicLinkEmail(email, token, ctx?.request);
+        //     },
+        //     expiresIn: 600,
+        //     disableSignUp: isSignupDisabled("magic"),
+        // }),
         oauthProvider({
             loginPage: "/login",
             consentPage: "/authorize",
@@ -68,6 +68,7 @@ export const auth = betterAuth({
             clientSecret:
                 env.GOOGLE_CLIENT_SECRET ??
                 (process.env.GOOGLE_CLIENT_SECRET as string),
+            requireEmailVerification: true,
             disableSignUp: isSignupDisabled("google"),
         },
     },

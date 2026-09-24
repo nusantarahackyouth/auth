@@ -1,0 +1,64 @@
+---
+import type { HTMLAttributes } from "astro/types";
+
+import { cn } from "@/lib/utils";
+
+interface Props extends HTMLAttributes<"div"> {
+    size?: "sm" | "default" | "lg";
+    class?: string;
+}
+
+const {
+    size = "default",
+    class: className = "",
+    ...rest
+} = Astro.props as Props;
+---
+
+<div
+    {...rest}
+    role="group"
+    data-slot="input-group"
+    data-size={size}
+    class={cn(
+        "group/input-group border-input dark:bg-input/30 has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50 has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[[data-slot][aria-invalid=true]]:border-destructive dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40 relative flex h-9 w-full min-w-0 items-center rounded-md border shadow-xs outline-none transition-[color,box-shadow] has-[[data-slot=input-group-control]:focus-visible]:ring-3 has-[[data-slot][aria-invalid=true]]:ring-3 has-[>textarea]:h-auto has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>[data-align=block-end]]:[&>input]:pt-3 has-[>[data-align=block-start]]:[&>input]:pb-3 has-[>[data-align=inline-end]]:[&>input]:pr-1.5 has-[>[data-align=inline-start]]:[&>input]:pl-1.5 in-data-[slot=combobox-content]:focus-within:border-inherit in-data-[slot=combobox-content]:focus-within:ring-0",
+        className,
+    )}
+>
+    <slot />
+</div>
+
+<script>
+    function updateDisabledState(group: Element) {
+        const control = group.querySelector("[data-slot='input-group-control']");
+        (group as HTMLElement).dataset.disabled = control?.hasAttribute("disabled")
+            ? "true"
+            : "false";
+    }
+
+    function initInputGroups() {
+        document
+            .querySelectorAll("[data-slot='input-group']")
+            .forEach(updateDisabledState);
+    }
+
+    document.addEventListener("click", (event) => {
+        if (!(event.target instanceof Element)) return;
+
+        const addon = event.target.closest("[data-slot='input-group-addon']");
+        if (!addon || event.target.closest("button")) return;
+
+        const control = addon
+            .closest("[data-slot='input-group']")
+            ?.querySelector<HTMLElement>("[data-slot='input-group-control']");
+        control?.focus();
+    });
+    document.addEventListener("change", (event) => {
+        if (!(event.target instanceof Element)) return;
+
+        const group = event.target.closest("[data-slot='input-group']");
+        if (group) updateDisabledState(group);
+    }, { capture: true });
+    document.addEventListener("astro:page-load", initInputGroups);
+    initInputGroups();
+</script>

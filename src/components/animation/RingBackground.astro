@@ -9,159 +9,290 @@
 ></canvas>
 
 <script>
-  type Ripple = { x: number; y: number; born: number };
+    type Ripple = { x: number; y: number; born: number };
+    type PixelOffset = { x: number; y: number };
 
-  const PIXEL_SIZE = 14;
-  const SPAWN_DELAY_MS = 2000;
-  const MIN_SPAWN_GAP_IN_PIXELS = 24;
-  const SPAWN_OVERFLOW_IN_PIXELS = -4;
-  const MAX_SPAWN_ATTEMPTS = 24;
-  const STEP_MS = 250;
-  const LIFE_MS = STEP_MS * 32;
-  const COLOR = '140, 140, 140';
-  const active = new Map<HTMLCanvasElement, () => void>();
+    const PIXEL_SIZE = 14;
+    const SPAWN_DELAY_MS = 1300;
+    const TOUCH_DELAY_MS = 1000;
+    const MIN_SPAWN_GAP_IN_PIXELS = 24;
+    const SPAWN_OVERFLOW_IN_PIXELS = -4;
+    const MAX_SPAWN_ATTEMPTS = 24;
+    const STEP_MS = 150;
+    const LIFE_MS = STEP_MS * 32;
+    const FRAME_INTERVAL_MS = 1000 / 30;
+    const COLOR = "140, 140, 140";
+    const MAX_RING_SIZE = Math.ceil(LIFE_MS / STEP_MS);
+    const active = new Map<HTMLCanvasElement, () => void>();
 
-  function start(canvas: HTMLCanvasElement) {
-    const context = canvas.getContext('2d', { alpha: true });
-    if (!context) return;
+    const ringOffsets: PixelOffset[][] = Array.from(
+        { length: MAX_RING_SIZE },
+        (_, stage) => {
+            const size = stage + 1;
+            const radius = stage / 2;
+            const offsets: PixelOffset[] = [];
 
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const minimumSpawnGap = PIXEL_SIZE * MIN_SPAWN_GAP_IN_PIXELS;
-    const ripples: Ripple[] = [];
-    let width = 0;
-    let height = 0;
-    let frame = 0;
-    let lastDraw = 0;
-    let nextRipple = 0;
+            for (let row = 0; row < size; row++) {
+                for (let column = 0; column < size; column++) {
+                    const dx = column - radius;
+                    const dy = row - radius;
+                    if (Math.abs(Math.hypot(dx, dy) - radius) > 0.55) {
+                        continue;
+                    }
 
-    function randomGridPosition(length: number) {
-      const minimumCell = -SPAWN_OVERFLOW_IN_PIXELS;
-      const maximumCell =
-        Math.ceil(length / PIXEL_SIZE) + SPAWN_OVERFLOW_IN_PIXELS;
-      const cell =
-        minimumCell +
-        Math.floor(Math.random() * (maximumCell - minimumCell + 1));
+                    offsets.push({
+                        x: Math.round(dx * PIXEL_SIZE - PIXEL_SIZE / 2),
+                        y: Math.round(dy * PIXEL_SIZE - PIXEL_SIZE / 2),
+                    });
+                }
+            }
 
-      return cell * PIXEL_SIZE;
-    }
+            return offsets;
+        },
+    );
 
-    function spawn(born: number) {
-      for (let attempt = 0; attempt < MAX_SPAWN_ATTEMPTS; attempt++) {
-        const x = randomGridPosition(width);
-        const y = randomGridPosition(height);
-        const hasEnoughSpace = ripples.every(
-          (ripple) => Math.hypot(ripple.x - x, ripple.y - y) >= minimumSpawnGap,
+    function start(canvas: HTMLCanvasElement) {
+        const canvasContext = canvas.getContext("2d", { alpha: true });
+        if (!canvasContext) return;
+        const context: CanvasRenderingContext2D = canvasContext;
+
+        const reducedMotion = window.matchMedia(
+            "(prefers-reduced-motion: reduce)",
         );
+        const minimumSpawnGap = PIXEL_SIZE * MIN_SPAWN_GAP_IN_PIXELS;
+        const minimumSpawnGapSquared = minimumSpawnGap ** 2;
+        const ripples: Ripple[] = [];
+        let width = 0;
+        let height = 0;
+        let frame = 0;
+        let lastDraw = 0;
+        let nextTouchAt = 0;
+        let nextRippleAt = 0;
 
-        if (hasEnoughSpace) {
-          ripples.push({ x, y, born });
-          return;
+        function randomGridPosition(length: number) {
+            const minimumCell = -SPAWN_OVERFLOW_IN_PIXELS;
+            const maximumCell =
+                Math.ceil(length / PIXEL_SIZE) + SPAWN_OVERFLOW_IN_PIXELS;
+
+            if (maximumCell < minimumCell) {
+                return Math.round(length / PIXEL_SIZE / 2) * PIXEL_SIZE;
+            }
+
+            const cell =
+                minimumCell +
+                Math.floor(
+                    Math.random() * (maximumCell - minimumCell + 1),
+                );
+
+            return cell * PIXEL_SIZE;
         }
-      }
-    }
 
-    function paint(ripple: Ripple, now: number) {
-      const age = now - ripple.born;
-      if (age < 0 || age >= LIFE_MS) return;
+        function spawnAt(
+            x: number,
+            y: number,
+            born: number,
+            avoidOverlap = true,
+        ) {
+            const snappedX = Math.round(x / PIXEL_SIZE) * PIXEL_SIZE;
+            const snappedY = Math.round(y / PIXEL_SIZE) * PIXEL_SIZE;
 
-      // The grid grows from 1x1 toward 20x20. Distance makes its outline round.
-      const size = Math.floor(age / STEP_MS) + 1;
-      const radius = (size - 1) / 2;
-      const fadeStart = STEP_MS * 3; // The 5x5 stage.
-      const fade = 0.78 * (1 - Math.max(0, age - fadeStart) / (LIFE_MS - fadeStart));
-      context!.fillStyle = `rgba(${COLOR}, ${fade})`;
+            if (avoidOverlap) {
+                const hasEnoughSpace = ripples.every((ripple) => {
+                    const dx = ripple.x - snappedX;
+                    const dy = ripple.y - snappedY;
+                    return dx * dx + dy * dy >= minimumSpawnGapSquared;
+                });
 
-      const centerX = Math.round(ripple.x / PIXEL_SIZE) * PIXEL_SIZE;
-      const centerY = Math.round(ripple.y / PIXEL_SIZE) * PIXEL_SIZE;
-      for (let row = 0; row < size; row++) {
-        for (let col = 0; col < size; col++) {
-          const dx = col - radius;
-          const dy = row - radius;
-          if (Math.abs(Math.hypot(dx, dy) - radius) > 0.55) continue;
-          context!.fillRect(
-            Math.round(centerX + dx * PIXEL_SIZE - PIXEL_SIZE / 2),
-            Math.round(centerY + dy * PIXEL_SIZE - PIXEL_SIZE / 2),
-            PIXEL_SIZE,
-            PIXEL_SIZE,
-          );
+                if (!hasEnoughSpace) return false;
+            }
+
+            ripples.push({ x: snappedX, y: snappedY, born });
+            return true;
         }
-      }
+
+        function spawnRandom(born: number) {
+            for (
+                let attempt = 0;
+                attempt < MAX_SPAWN_ATTEMPTS;
+                attempt++
+            ) {
+                if (
+                    spawnAt(
+                        randomGridPosition(width),
+                        randomGridPosition(height),
+                        born,
+                    )
+                ) {
+                    return;
+                }
+            }
+        }
+
+        function paint(ripple: Ripple, now: number) {
+            const age = now - ripple.born;
+            if (age < 0 || age >= LIFE_MS) return;
+
+            const stage = Math.floor(age / STEP_MS);
+            const fadeStart = STEP_MS * 3;
+            const fade =
+                0.78 *
+                (1 -
+                    Math.max(0, age - fadeStart) /
+                        (LIFE_MS - fadeStart));
+            context.fillStyle = `rgba(${COLOR}, ${fade})`;
+
+            for (const offset of ringOffsets[stage]) {
+                context.fillRect(
+                    ripple.x + offset.x,
+                    ripple.y + offset.y,
+                    PIXEL_SIZE,
+                    PIXEL_SIZE,
+                );
+            }
+        }
+
+        function render(now: number) {
+            context.clearRect(0, 0, width, height);
+            for (const ripple of ripples) paint(ripple, now);
+        }
+
+        function removeExpiredRipples(now: number) {
+            for (let index = ripples.length - 1; index >= 0; index--) {
+                if (now - ripples[index].born >= LIFE_MS) {
+                    ripples.splice(index, 1);
+                }
+            }
+        }
+
+        function scheduleFrame() {
+            if (
+                frame ||
+                document.hidden ||
+                reducedMotion.matches
+            ) {
+                return;
+            }
+
+            frame = requestAnimationFrame(tick);
+        }
+
+        function tick(now: number) {
+            frame = 0;
+            scheduleFrame();
+            if (now - lastDraw < FRAME_INTERVAL_MS) return;
+            lastDraw = now;
+
+            removeExpiredRipples(now);
+            if (now >= nextRippleAt) {
+                spawnRandom(now);
+                nextRippleAt = now + SPAWN_DELAY_MS;
+            }
+            render(now);
+        }
+
+        function touched(event: PointerEvent) {
+            if (reducedMotion.matches) return;
+
+            const now = performance.now();
+            if (now < nextTouchAt) return;
+
+            const bounds = canvas.getBoundingClientRect();
+            const x = event.clientX - bounds.left;
+            const y = event.clientY - bounds.top;
+            if (x < 0 || x > width || y < 0 || y > height) return;
+
+            nextTouchAt = now + TOUCH_DELAY_MS;
+            spawnAt(x, y, now, false);
+            render(now);
+        }
+
+        function resize() {
+            const bounds = canvas.getBoundingClientRect();
+            width = bounds.width;
+            height = bounds.height;
+
+            const ratio = Math.min(window.devicePixelRatio || 1, 2);
+            canvas.width = Math.round(width * ratio);
+            canvas.height = Math.round(height * ratio);
+            context.setTransform(ratio, 0, 0, ratio, 0, 0);
+            render(performance.now());
+        }
+
+        function motionChanged() {
+            cancelAnimationFrame(frame);
+            frame = 0;
+            ripples.length = 0;
+
+            const now = performance.now();
+            if (reducedMotion.matches) {
+                ripples.push(
+                    {
+                        x: width * 0.16,
+                        y: height * 0.32,
+                        born: now - STEP_MS * 10,
+                    },
+                    {
+                        x: width * 0.83,
+                        y: height * 0.7,
+                        born: now - STEP_MS * 6,
+                    },
+                );
+                render(now);
+                return;
+            }
+
+            nextRippleAt = now + SPAWN_DELAY_MS;
+            render(now);
+            scheduleFrame();
+        }
+
+        function visibilityChanged() {
+            if (document.hidden) {
+                cancelAnimationFrame(frame);
+                frame = 0;
+                return;
+            }
+
+            lastDraw = 0;
+            scheduleFrame();
+        }
+
+        const observer = new ResizeObserver(resize);
+        observer.observe(canvas);
+        reducedMotion.addEventListener("change", motionChanged);
+        document.addEventListener("visibilitychange", visibilityChanged);
+        window.addEventListener("pointerdown", touched);
+        resize();
+        motionChanged();
+
+        active.set(canvas, () => {
+            cancelAnimationFrame(frame);
+            observer.disconnect();
+            reducedMotion.removeEventListener("change", motionChanged);
+            document.removeEventListener(
+                "visibilitychange",
+                visibilityChanged,
+            );
+            window.removeEventListener("pointerdown", touched);
+            active.delete(canvas);
+        });
     }
 
-    function render(now: number) {
-      context!.clearRect(0, 0, width, height);
-      for (const ripple of ripples) paint(ripple, now);
+    function init() {
+        for (const [canvas, dispose] of active) {
+            if (!canvas.isConnected) dispose();
+        }
+
+        document
+            .querySelectorAll<HTMLCanvasElement>("[data-ring-background]")
+            .forEach((canvas) => {
+                if (!active.has(canvas)) start(canvas);
+            });
     }
 
-    function tick(now: number) {
-      frame = requestAnimationFrame(tick);
-      if (document.hidden || now - lastDraw < 33) return;
-      lastDraw = now;
-
-      if (now >= nextRipple) {
-        spawn(now);
-        nextRipple = now + SPAWN_DELAY_MS;
-      }
-      for (let i = ripples.length - 1; i >= 0; i--) {
-        if (now - ripples[i].born >= LIFE_MS) ripples.splice(i, 1);
-      }
-      render(now);
-    }
-
-    function resize() {
-      const bounds = canvas.getBoundingClientRect();
-      width = bounds.width;
-      height = bounds.height;
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.round(width * ratio);
-      canvas.height = Math.round(height * ratio);
-      context!.setTransform(ratio, 0, 0, ratio, 0, 0);
-      render(performance.now());
-    }
-
-    function motionChanged() {
-      cancelAnimationFrame(frame);
-      ripples.length = 0;
-      const now = performance.now();
-      if (reducedMotion.matches) {
-        // A still version keeps the page decorated without movement.
-        ripples.push(
-          { x: width * 0.16, y: height * 0.32, born: now - STEP_MS * 10 },
-          { x: width * 0.83, y: height * 0.7, born: now - STEP_MS * 6 },
-        );
-        render(now);
-      } else {
-        nextRipple = now + SPAWN_DELAY_MS;
-        render(now);
-        frame = requestAnimationFrame(tick);
-      }
-    }
-
-    const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
-    reducedMotion.addEventListener('change', motionChanged);
-    resize();
-    motionChanged();
-
-    active.set(canvas, () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-      reducedMotion.removeEventListener('change', motionChanged);
-      active.delete(canvas);
+    init();
+    document.addEventListener("astro:page-load", init);
+    document.addEventListener("astro:before-swap", () => {
+        for (const dispose of active.values()) dispose();
     });
-  }
-
-  function init() {
-    for (const [canvas, dispose] of active) {
-      if (!canvas.isConnected) dispose();
-    }
-    document.querySelectorAll<HTMLCanvasElement>('[data-ring-background]')
-      .forEach((canvas) => { if (!active.has(canvas)) start(canvas); });
-  }
-
-  init();
-  document.addEventListener('astro:page-load', init);
-  document.addEventListener('astro:before-swap', () => {
-    for (const dispose of active.values()) dispose();
-  });
 </script>

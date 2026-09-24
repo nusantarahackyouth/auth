@@ -3,9 +3,11 @@ import { locales, type TranslationDictionary } from "@better-auth/i18n";
 export const lang: Readonly<TranslationDictionary> = {
     ...locales.en,
 
-    BANNED_USER: "Your account is cooked. If this is a mistake, please contact our staff.",
+    BANNED_USER: "This account is cooked. If this is a mistake, please contact our staff.",
     EMAIL_MISMATCH:
         "You can't use this account for linking. Use an account with the same email.",
+    EMAIL_NOT_VERIFIED:
+        "Verify the account email first before sign-in, duh.",
     FAILED_TO_CREATE_USER:
         "Can't make your account for now. Weird, try again? If still happens, contact our staff.",
     FAILED_TO_CREATE_SESSION:
