@@ -7,24 +7,19 @@ import tailwindcss from "@tailwindcss/vite";
 import icon from "astro-icon";
 
 // https://astro.build/config
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   adapter: cloudflare({
       imageService: "compile",
   }),
-
   build: {
       assets: "assets",
   },
-
   session: false,
-
   security: {
-      checkOrigin: true,
+      checkOrigin: command !== "dev",
   },
-
   vite: {
       plugins: [tailwindcss()],
   },
-
   integrations: [icon()],
-});
+}));

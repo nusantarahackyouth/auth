@@ -1,11 +1,21 @@
 ---
 import Layout from "@/layouts/Layout.astro";
+import { withAuth } from "@/lib/auth";
 
-// We dont have anything here yet. So directly redirect to /login
-return Astro.redirect("/login");
+const authSession = await withAuth((auth) =>
+    auth.api.getSession({
+        headers: Astro.request.headers,
+    }),
+);
+
+if (!authSession) {
+    return Astro.redirect("/login");
+}
+
+const { user } = authSession;
 
 ---
 
 <Layout title="Home">
-    <p>Nothing?</p>
+    <p>You logged in! as {user.name} btw.</p>
 </Layout>

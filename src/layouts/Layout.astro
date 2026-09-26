@@ -1,11 +1,47 @@
 ---
-import { ClientRouter } from "astro:transitions";
+import CustomClientRouter from "@/components/core/CustomClientRouter.astro";
+import TopProgress from "@/components/core/TopProgress.astro";
+import TopToast from "@/components/core/TopToast.astro";
 import "@/styles/globals.css";
 
-const { title } = Astro.props;
+interface Props {
+    title?: string;
+    handleToast?: boolean;
+    pageTransition?: "none" | "fade";
+}
+const {
+    title,
+    handleToast = true,
+    pageTransition = "none",
+} = Astro.props;
+
+type ToastKind = 0 | 1 | 2 | 3;
+type Toast = [ToastKind, string];
+
+let toast: Toast | undefined;
+const toastCookie = handleToast ? Astro.cookies.get("nhy-toast") : undefined;
+
+if (toastCookie) {
+    Astro.cookies.delete("nhy-toast", { path: "/" });
+
+    try {
+        const parsedToast: unknown = JSON.parse(toastCookie.value);
+        if (
+            Array.isArray(parsedToast) &&
+            parsedToast.length === 2 &&
+            Number.isInteger(parsedToast[0]) &&
+            parsedToast[0] >= 0 &&
+            parsedToast[0] <= 3 &&
+            typeof parsedToast[1] === "string"
+        ) {
+            toast = parsedToast as Toast;
+        }
+    } catch {}
+}
+
 ---
 
-<html lang="en" transition:animate="none">
+<html lang="en" transition:animate={pageTransition}>
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" href="/favicon.ico" />
@@ -22,16 +58,13 @@ const { title } = Astro.props;
                         : "light";
 
             document.documentElement.classList.toggle("dark", theme === "dark");
-
-            document.addEventListener("astro:before-swap", (event) => {
-                const isDark = document.documentElement.classList.contains("dark");
-                event.newDocument.documentElement.classList.toggle("dark", isDark);
-            });
 		</script>
 
-		<ClientRouter />
+		<CustomClientRouter />
 	</head>
 	<body>
-		<slot />
+            <TopProgress />
+            {toast && <TopToast toast={toast} />}
+			<slot />
 	</body>
 </html>

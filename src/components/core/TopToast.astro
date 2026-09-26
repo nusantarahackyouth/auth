@@ -1,0 +1,159 @@
+---
+import { CircleAlert, CircleCheck, CircleX, Info, X } from "@lucide/astro";
+
+type ToastKind = 0 | 1 | 2 | 3;
+type Toast = readonly [ToastKind, string];
+
+interface Props {
+    toast?: Toast;
+}
+
+const { toast } = Astro.props;
+
+const variants = {
+    0: {
+        icon: CircleX,
+        class: "bg-destructive text-destructive-foreground",
+        role: "alert",
+    },
+    1: {
+        icon: CircleCheck,
+        class: "bg-success text-destructive-foreground",
+        role: "status",
+    },
+    2: {
+        icon: CircleAlert,
+        class: "bg-accent text-accent-foreground",
+        role: "alert",
+    },
+    3: {
+        icon: Info,
+        class: "bg-primary text-primary-foreground",
+        role: "status",
+    },
+} as const;
+
+const variant = toast ? variants[toast[0]] : undefined;
+const ToastIcon = variant?.icon;
+---
+
+<div
+    id="top-toast"
+    transition:persist
+    class="pointer-events-none fixed inset-x-0 top-6 z-999998 flex justify-center px-4"
+    data-state={toast ? "enter" : undefined}
+    hidden={!toast}
+>
+    {
+        toast && variant && ToastIcon && (
+            <div
+                data-toast
+                role={variant.role}
+                class:list={[
+                    "pointer-events-auto flex max-w-lg items-center gap-x-2 rounded-md px-4 py-3 shadow-lg",
+                    variant.class,
+                ]}
+            >
+                <ToastIcon class="size-5 min-h-5 min-w-5" aria-hidden="true" />
+                <span class="-mt-0.5 flex-1">{toast[1]}</span>
+                <button
+                    data-toast-close
+                    type="button"
+                    class="-m-1 cursor-pointer rounded-sm p-1"
+                    aria-label="Dismiss notification"
+                >
+                    <X class="size-4" aria-hidden="true" />
+                </button>
+            </div>
+        )
+    }
+</div>
+
+<script>
+    const DISPLAY_DURATION_MS = 5000;
+    const EXIT_DURATION_MS = 200;
+
+    let hideTimeout = 0;
+    let remainingTime = DISPLAY_DURATION_MS;
+    let timerStartedAt = 0;
+    let activeToast: HTMLElement | null = null;
+
+    function clearHideTimeout() {
+        window.clearTimeout(hideTimeout);
+        hideTimeout = 0;
+    }
+
+    function dismissToast(root: HTMLElement) {
+        const toast = root.querySelector<HTMLElement>("[data-toast]");
+        if (!toast || root.hidden || root.dataset.state === "exit") return;
+
+        clearHideTimeout();
+        root.dataset.state = "exit";
+
+        let finished = false;
+        const finish = () => {
+            if (finished) return;
+            finished = true;
+            toast.removeEventListener("animationend", finish);
+            root.hidden = true;
+            root.replaceChildren();
+            activeToast = null;
+        };
+
+        toast.addEventListener("animationend", finish, { once: true });
+        window.setTimeout(finish, EXIT_DURATION_MS);
+    }
+
+    function startHideTimer(root: HTMLElement) {
+        clearHideTimeout();
+        timerStartedAt = Date.now();
+        hideTimeout = window.setTimeout(
+            () => dismissToast(root),
+            remainingTime,
+        );
+    }
+
+    function setupToast(root: HTMLElement) {
+        const toast = root.querySelector<HTMLElement>("[data-toast]");
+        if (!toast || toast === activeToast) return;
+
+        clearHideTimeout();
+        activeToast = toast;
+        remainingTime = DISPLAY_DURATION_MS;
+        root.hidden = false;
+        root.dataset.state = "enter";
+
+        toast.querySelector<HTMLElement>("[data-toast-close]")?.addEventListener(
+            "click",
+            () => dismissToast(root),
+        );
+        toast.addEventListener("mouseenter", () => {
+            if (!hideTimeout) return;
+            remainingTime = Math.max(
+                0,
+                remainingTime - (Date.now() - timerStartedAt),
+            );
+            clearHideTimeout();
+        });
+        toast.addEventListener("mouseleave", () => startHideTimer(root));
+
+        startHideTimer(root);
+    }
+
+    const initialRoot = document.getElementById("top-toast");
+    if (initialRoot instanceof HTMLElement) setupToast(initialRoot);
+
+    document.addEventListener("astro:before-swap", (event) => {
+        const currentRoot = document.getElementById("top-toast");
+        const incomingRoot = event.newDocument.getElementById("top-toast");
+        const incomingToast = incomingRoot?.querySelector<HTMLElement>(
+            "[data-toast]",
+        );
+
+        if (!(currentRoot instanceof HTMLElement) || !incomingToast) return;
+
+        currentRoot.replaceChildren(incomingToast.cloneNode(true));
+        activeToast = null;
+        setupToast(currentRoot);
+    });
+</script>

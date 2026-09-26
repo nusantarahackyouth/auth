@@ -1,0 +1,542 @@
+---
+import { actions } from "astro:actions";
+import { Image } from "astro:assets";
+import { eq } from "drizzle-orm";
+
+import type { WelcomeResult } from "@/actions/auth/welcome";
+import WelcomeForm from "@/components/features/welcome/WelcomeForm.astro";
+import WelcomeFormRouter from "@/components/features/welcome/WelcomeFormRouter.astro";
+import { withAuth } from "@/lib/auth";
+import { user as userTable } from "@/lib/db/schema";
+import Layout from "@/layouts/Layout.astro";
+
+import Logo from "@/assets/logo.png";
+import Background from "@/assets/mt-bg.png";
+
+// Temporary value for sake of development
+const DISABLE_WELCOME_ANIMATION = false;
+
+const requestedRedirectTo = Astro.url.searchParams.get("redirect_to");
+let redirectTo = "/";
+if (
+    requestedRedirectTo?.startsWith("/") &&
+    !requestedRedirectTo.startsWith("//")
+) {
+    const redirectUrl = new URL(requestedRedirectTo, Astro.url.origin);
+    if (redirectUrl.origin === Astro.url.origin) {
+        redirectTo = `${redirectUrl.pathname}${redirectUrl.search}${redirectUrl.hash}`;
+    }
+}
+
+const authState = await withAuth(async (auth, db) => {
+    const session = await auth.api.getSession({
+        headers: Astro.request.headers,
+    });
+    if (!session) return null;
+
+    const [welcomeRecord] = await db
+        .select({ welcomeDoneAt: userTable.welcomeDoneAt })
+        .from(userTable)
+        .where(eq(userTable.id, session.user.id))
+        .limit(1);
+
+    return {
+        session,
+        welcomeDoneAt: welcomeRecord?.welcomeDoneAt ?? null,
+    };
+});
+if (!authState) {
+    return Astro.redirect("/login");
+}
+if (authState.welcomeDoneAt) {
+    return Astro.redirect(redirectTo);
+}
+const { user } = authState.session;
+
+let welcomeState: WelcomeResult = {
+    step: 0,
+    complete: false,
+    data: {},
+};
+let welcomeError: string | null = null;
+
+if (Astro.request.method === "POST") {
+    const form = await Astro.request.formData();
+    const result = await Astro.callAction(actions.welcome, form);
+
+    if (result.data) {
+        welcomeState = result.data;
+    } else if (result.error) {
+        welcomeError = result.error.message;
+
+        if (form.get("step") === "1") {
+            const name = form.get("name");
+            welcomeState = {
+                step: 1,
+                complete: false,
+                data: { name: typeof name === "string" ? name : null },
+            };
+        }
+    }
+}
+
+const partialRequest =
+    Astro.request.headers.get("X-Welcome-Fragment") === "1";
+if (partialRequest) {
+    Astro.response.headers.set("X-Welcome-Fragment", "1");
+}
+
+const welcomeFormProps = {
+    ...welcomeState,
+    error: welcomeError,
+    redirectTo,
+};
+
+// If its a success toast, remove
+const toastCookie = Astro.cookies.get("nhy-toast");
+if (toastCookie) {
+    try {
+        const toast: unknown = JSON.parse(toastCookie.value);
+        if (
+            Array.isArray(toast) &&
+            toast.length === 2 &&
+            typeof toast[1] === "string"
+            && toast[0] == 1
+        ) {
+            Astro.cookies.delete("nhy-toast", { path: "/" });
+        }
+    } catch {}
+}
+
+---
+
+{
+    partialRequest ? (
+        <WelcomeForm {...welcomeFormProps} />
+    ) : (
+        <Layout title="Welcome">
+            <div
+                id="main-entry"
+                class:list={[
+                    "relative min-h-screen overflow-hidden",
+                    !DISABLE_WELCOME_ANIMATION && "hidden",
+                ]}
+            >
+                <section
+                    id="welcome-background"
+                    class="pointer-events-none absolute inset-0 z-0 opacity-[0.3]"
+                >
+                    <div class="absolute inset-x-0 bottom-0 z-[-1] overflow-clip opacity-60 dark:opacity-100 pointer-events-none select-none">
+                        <img
+                            src={Background.src}
+                            alt=""
+                            class="relative left-1/2 block w-full min-w-3xl max-w-none -translate-x-1/2"
+                            style="image-rendering: pixelated;"
+                        />
+                    </div>
+                </section>
+                <section
+                    id="welcome-content"
+                    class="relative z-10 p-8 py-16 flex min-h-screen w-full flex-col items-center justify-center gap-y-8"
+                >
+                    <div id="title" class="flex justify-center items-center flex-col text-center -mt-12">
+                        <Image src={Logo} alt="Logo" width={96} height={96} class="size-14 mb-2 invert dark:invert-0 pointer-events-none select-none" />
+                        <h2 class="text-foreground/90 text-3xl -mb-1 ml-1">
+                            <span data-welcome-header-motion class="block">Welcome to</span>
+                        </h2>
+                        <h1 class="font-semibold text-5xl">
+                            <span data-welcome-header-motion class="block">NHY <span class="text-primary">Auth</span>!</span>
+                        </h1>
+                    </div>
+
+                    <p data-welcome-description class="text-lg max-w-lg text-center">
+                        Before you continue, please complete these info details so we can get your profile set up.
+                    </p>
+
+                    <div class="w-full flex justify-center items-center flex-col max-w-lg gap-y-4">
+                        <WelcomeFormRouter>
+                            <WelcomeForm {...welcomeFormProps} />
+                        </WelcomeFormRouter>
+                    </div>
+
+                    <div class="flex justify-center items-center flex-col gap-y-0 text-center text-muted-foreground max-w-md">
+                        <p>Logged in as {user.email}</p>
+                        <p>Wrong account?&nbsp;&nbsp;<span class="underline hover:text-primary-2 font-semibold cursor-pointer">Click here to sign out</span>.</p>
+                    </div>
+                </section>
+            </div>
+
+            {
+                !DISABLE_WELCOME_ANIMATION && (
+                    <script is:inline data-astro-rerun>
+                        (() => {
+                            if (window.__nhyWelcomeAnimationInitialized) return;
+                            window.__nhyWelcomeAnimationInitialized = true;
+
+                            const TITLE_DURATION_MS = 500;
+                            const MAIN_TRANSITION_DELAY_MS = 1500;
+                            const MAIN_TRANSITION_DURATION_MS = 2000;
+                            const CONTENT_DELAY_MS = 2800;
+                            const STAGGER_DELAY_MS = 200;
+                            const ENTRY_EASING = "cubic-bezier(.22,.61,.36,1)";
+                            const REDUCED_MOTION_QUERY =
+                                "(prefers-reduced-motion: reduce)";
+
+                            let finishWelcomeAnimation = () => {};
+
+                            function animateEntryElements(elements, animations) {
+                                return elements.map((element, index) => {
+                                    const animation = element.animate(
+                                        [
+                                            {
+                                                opacity: 0,
+                                                transform: "translateY(0.75rem)",
+                                            },
+                                            {
+                                                opacity: 1,
+                                                transform: "translateY(0)",
+                                            },
+                                        ],
+                                        {
+                                            duration: TITLE_DURATION_MS,
+                                            delay: index * STAGGER_DELAY_MS,
+                                            easing: ENTRY_EASING,
+                                            fill: "forwards",
+                                        },
+                                    );
+                                    animations.push(animation);
+                                    return animation;
+                                });
+                            }
+
+                            function runWelcomeAnimation() {
+                                finishWelcomeAnimation();
+
+                                const mainEntry = document.getElementById("main-entry");
+                                const content = document.getElementById("welcome-content");
+                                if (!(mainEntry instanceof HTMLElement)) return;
+
+                                const background = document.getElementById("welcome-background");
+                                const title = content?.querySelector("#title");
+                                const titleElements = title
+                                    ? Array.from(title.children).filter(
+                                        (element) => element instanceof HTMLElement,
+                                    )
+                                    : [];
+                                const contentElements = content
+                                    ? Array.from(content.children).filter(
+                                        (element) =>
+                                            element instanceof HTMLElement &&
+                                            element !== title,
+                                    )
+                                    : [];
+
+                                const timers = [];
+                                const animations = [];
+                                const originalBodyOverflow = document.body.style.overflow;
+                                let finished = false;
+
+                                const finish = () => {
+                                    if (finished) return;
+                                    finished = true;
+
+                                    timers.forEach((timer) => window.clearTimeout(timer));
+                                    animations.forEach((animation) => animation.cancel());
+
+                                    mainEntry.hidden = false;
+                                    mainEntry.classList.remove("hidden");
+                                    mainEntry.style.removeProperty("transform");
+                                    mainEntry.style.removeProperty("transition");
+                                    mainEntry.style.removeProperty("pointer-events");
+                                    background?.style.removeProperty("opacity");
+                                    background?.style.removeProperty("transition");
+                                    [...titleElements, ...contentElements].forEach(
+                                        (element) => {
+                                            element.style.removeProperty("opacity");
+                                            element.style.removeProperty("transform");
+                                        },
+                                    );
+                                    document.body.style.overflow = originalBodyOverflow;
+
+                                    if (finishWelcomeAnimation === finish) {
+                                        finishWelcomeAnimation = () => {};
+                                    }
+                                };
+
+                                finishWelcomeAnimation = finish;
+
+                                try {
+                                    if (
+                                        !(background instanceof HTMLElement) ||
+                                        !(content instanceof HTMLElement) ||
+                                        !(title instanceof HTMLElement) ||
+                                        titleElements.length === 0 ||
+                                        contentElements.length === 0 ||
+                                        typeof titleElements[0].animate !== "function" ||
+                                        matchMedia(REDUCED_MOTION_QUERY).matches
+                                    ) {
+                                        finish();
+                                        return;
+                                    }
+
+                                    const backgroundOpacity =
+                                        getComputedStyle(background).opacity;
+
+                                    document.body.style.overflow = "hidden";
+                                    mainEntry.style.transform = "scale(1.4)";
+                                    background.style.opacity = "0";
+                                    mainEntry.style.pointerEvents = "none";
+                                    [...titleElements, ...contentElements].forEach(
+                                        (element) => {
+                                            element.style.opacity = "0";
+                                            element.style.transform =
+                                                "translateY(0.75rem)";
+                                        },
+                                    );
+                                    mainEntry.hidden = false;
+                                    mainEntry.classList.remove("hidden");
+
+                                    const titleBounds = title.getBoundingClientRect();
+                                    const titleOffset =
+                                        window.innerHeight / 2 -
+                                        (titleBounds.top + titleBounds.height / 2);
+                                    if (!Number.isFinite(titleOffset)) throw new Error();
+
+                                    mainEntry.style.transform =
+                                        `translateY(${titleOffset}px) scale(1.4)`;
+
+                                    animateEntryElements(
+                                        titleElements,
+                                        animations,
+                                    );
+
+                                    timers.push(
+                                        window.setTimeout(() => {
+                                            try {
+                                                mainEntry.style.transition =
+                                                    `transform ${MAIN_TRANSITION_DURATION_MS}ms cubic-bezier(.65,.05,.36,1)`;
+                                                background.style.transition =
+                                                    `opacity ${MAIN_TRANSITION_DURATION_MS}ms cubic-bezier(.65,.05,.36,1)`;
+
+                                                timers.push(
+                                                    window.setTimeout(() => {
+                                                        mainEntry.style.transform =
+                                                            "translateY(0) scale(1)";
+                                                        background.style.opacity =
+                                                            backgroundOpacity;
+                                                    }, 10),
+                                                );
+                                            } catch {
+                                                finish();
+                                            }
+                                        }, MAIN_TRANSITION_DELAY_MS),
+                                    );
+
+                                    timers.push(
+                                        window.setTimeout(() => {
+                                            try {
+                                                const contentAnimations =
+                                                    animateEntryElements(
+                                                        contentElements,
+                                                        animations,
+                                                    );
+                                                contentAnimations.at(-1)?.finished.then(
+                                                    finish,
+                                                    finish,
+                                                );
+                                            } catch {
+                                                finish();
+                                            }
+                                        }, CONTENT_DELAY_MS),
+                                    );
+                                } catch {
+                                    finish();
+                                }
+                            }
+
+                            document.addEventListener(
+                                "astro:page-load",
+                                runWelcomeAnimation,
+                            );
+                            document.addEventListener("astro:before-preparation", () => {
+                                finishWelcomeAnimation();
+                            });
+                        })();
+                    </script>
+                )
+            }
+
+            <script>
+                import { navigate } from "astro:transitions/client";
+                import confetti, {
+                    type Options as ConfettiOptions,
+                } from "canvas-confetti";
+
+                const EXIT_TRANSITION_MS = 1200;
+                const CONFETTI_PARTICLE_COUNT = 200;
+                const REDUCED_MOTION_QUERY =
+                    "(prefers-reduced-motion: reduce)";
+                const confettiDefaults: ConfettiOptions = {
+                    origin: { y: 0.7 },
+                    disableForReducedMotion: true,
+                };
+                let activeConfettiCanvas: HTMLCanvasElement | null = null;
+
+                async function playWelcomeConfetti() {
+                    const mainEntry = document.getElementById("main-entry");
+                    if (
+                        !(mainEntry instanceof HTMLElement) ||
+                        matchMedia(REDUCED_MOTION_QUERY).matches
+                    ) {
+                        return;
+                    }
+
+                    activeConfettiCanvas?.remove();
+
+                    const canvas = document.createElement("canvas");
+                    canvas.dataset.welcomeConfetti = "";
+                    canvas.setAttribute("aria-hidden", "true");
+                    canvas.className =
+                        "pointer-events-none absolute inset-0 z-[5] size-full";
+                    mainEntry.insertAdjacentElement("beforeend", canvas);
+                    activeConfettiCanvas = canvas;
+
+                    const launch = confetti.create(canvas, {
+                        resize: true,
+                        useWorker: true,
+                    });
+                    const fire = (
+                        particleRatio: number,
+                        options: ConfettiOptions,
+                    ) =>
+                        launch({
+                            ...confettiDefaults,
+                            ...options,
+                            particleCount: Math.floor(
+                                CONFETTI_PARTICLE_COUNT * particleRatio,
+                            ),
+                        });
+
+                    try {
+                        await Promise.all([
+                            fire(0.25, { spread: 26, startVelocity: 55 }),
+                            fire(0.2, { spread: 60 }),
+                            fire(0.35, {
+                                spread: 100,
+                                decay: 0.91,
+                                scalar: 0.8,
+                            }),
+                            fire(0.1, {
+                                spread: 120,
+                                startVelocity: 25,
+                                decay: 0.92,
+                                scalar: 1.2,
+                            }),
+                            fire(0.1, {
+                                spread: 120,
+                                startVelocity: 45,
+                            }),
+                        ]);
+                    } finally {
+                        if (activeConfettiCanvas === canvas) {
+                            activeConfettiCanvas = null;
+                        }
+                        canvas.remove();
+                    }
+                }
+
+                document.addEventListener("welcome:complete", () => {
+                    void playWelcomeConfetti();
+                });
+                document.addEventListener("astro:page-load", () => {
+                    const form = document.querySelector<HTMLElement>(
+                        "#welcome-form-router [data-welcome-form]",
+                    );
+                    if (form?.dataset.welcomeComplete === "true") {
+                        void playWelcomeConfetti();
+                    }
+                });
+
+                let exitInProgress = false;
+
+                document.addEventListener(
+                    "click",
+                    (event) => {
+                        const target = event.target;
+                        const link =
+                            target instanceof Element
+                                ? target.closest("a[data-welcome-exit]")
+                                : null;
+                        if (!(link instanceof HTMLAnchorElement) || exitInProgress) {
+                            return;
+                        }
+
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        exitInProgress = true;
+
+                        const mainEntry = document.getElementById("main-entry");
+                        if (!(mainEntry instanceof HTMLElement)) {
+                            void navigate(link.href);
+                            return;
+                        }
+
+                        const destination = link.href;
+                        if (
+                            matchMedia("(prefers-reduced-motion: reduce)").matches
+                        ) {
+                            void navigate(destination);
+                            return;
+                        }
+
+                        document.body.style.overflow = "hidden";
+                        mainEntry.style.pointerEvents = "none";
+                        mainEntry.style.transition = "none";
+                        mainEntry.style.scale = "1";
+                        mainEntry.style.opacity = "1";
+                        void mainEntry.offsetHeight;
+                        mainEntry.style.transition = [
+                            `scale ${EXIT_TRANSITION_MS}ms cubic-bezier(.76,.05,.86,.06)`,
+                            `opacity ${EXIT_TRANSITION_MS}ms cubic-bezier(.76,.05,.86,.06)`,
+                        ].join(", ");
+
+                        window.setTimeout(() => {
+                            let fallbackTimer = 0;
+                            const finish = () => {
+                                if (!exitInProgress) return;
+                                exitInProgress = false;
+                                window.clearTimeout(fallbackTimer);
+                                mainEntry.removeEventListener(
+                                    "transitionend",
+                                    onTransitionEnd,
+                                );
+                                void navigate(destination);
+                            };
+                            const onTransitionEnd = (transitionEvent: TransitionEvent) => {
+                                if (
+                                    transitionEvent.target === mainEntry &&
+                                    transitionEvent.propertyName === "opacity"
+                                ) {
+                                    finish();
+                                }
+                            };
+
+                            mainEntry.addEventListener(
+                                "transitionend",
+                                onTransitionEnd,
+                            );
+                            fallbackTimer = window.setTimeout(
+                                finish,
+                                EXIT_TRANSITION_MS + 100,
+                            );
+                            mainEntry.style.scale = "2";
+                            mainEntry.style.opacity = "0";
+                        }, 10);
+                    },
+                    true,
+                );
+            </script>
+
+        </Layout>
+    )
+}

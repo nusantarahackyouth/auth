@@ -4,6 +4,7 @@
 
 <canvas
     data-ring-background
+    transition:persist="ring-background"
     class="pointer-events-none absolute inset-0 h-full w-full"
     aria-hidden="true"
 ></canvas>
@@ -292,7 +293,4 @@
 
     init();
     document.addEventListener("astro:page-load", init);
-    document.addEventListener("astro:before-swap", () => {
-        for (const dispose of active.values()) dispose();
-    });
 </script>

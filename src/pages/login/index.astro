@@ -1,0 +1,147 @@
+---
+import { Image } from "astro:assets";
+
+import Layout from "@/layouts/Layout.astro";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+
+import { CircleCheck, CircleX } from '@lucide/astro';
+import { Icon } from "astro-icon/components";
+
+import RingBackground from "@/components/animation/RingBackground.astro";
+
+import Logo from "@/assets/logo.png";
+import Background from "@/assets/mt-bg.png";
+
+import { handleLoginPost } from "./_post";
+const loginResult = await handleLoginPost(Astro);
+if (loginResult instanceof Response) return loginResult;
+
+let { error, success } = loginResult;
+
+// Handle external toast
+const toastCookie = Astro.cookies.get("nhy-toast");
+if (toastCookie) {
+    Astro.cookies.delete("nhy-toast", { path: "/" });
+    try {
+        const toast: unknown = JSON.parse(toastCookie.value);
+        if (
+            Array.isArray(toast) &&
+            toast.length === 2 &&
+            typeof toast[1] === "string"
+        ) {
+            if (toast[0] === 0) error = toast[1];
+            if (toast[0] === 1) success = toast[1];
+        }
+    } catch {}
+}
+
+---
+
+<Layout title="Login" handleToast={false}>
+        <div class="relative min-h-screen overflow-hidden">
+            <section class="pointer-events-none absolute inset-0 z-0 opacity-[0.3]">
+                <RingBackground />
+                <div class="absolute inset-x-0 bottom-0 z-[-1] overflow-clip opacity-60 dark:opacity-100 pointer-events-none select-none">
+                    <img
+                        src={Background.src}
+                        alt=""
+                        class="relative left-1/2 block w-full min-w-3xl max-w-none -translate-x-1/2"
+                        style="image-rendering: pixelated;"
+                    />
+                </div>
+            </section>
+            <section
+                class="relative z-10 p-8 py-16 flex min-h-screen w-full flex-col items-center justify-center gap-y-8"
+            >
+                <div class="flex justify-center items-center flex-col text-center -mt-12">
+                    <Image src={Logo} alt="Logo" width={96} height={96} class="size-14 mb-2 invert dark:invert-0 pointer-events-none select-none" />
+                    <h2 class="text-foreground/90 text-3xl -mb-1 ml-1">Nusantara</h2>
+                    <h1 class="font-semibold text-5xl">Heck Ye<span class="text-primary">auth</span></h1>
+                </div>
+
+                <p class="text-lg max-w-lg text-center">Welcome! Please sign in to continue.</p>
+
+                <div class="w-full flex justify-center items-center flex-col max-w-lg gap-y-4">
+                    {
+                        (success || error) && (
+                            <div class="w-full" id="toast">
+                                {success && (
+                                    <div class="w-full rounded-md bg-success text-destructive-foreground px-4 py-3 flex items-center gap-x-2">
+                                        <CircleCheck class="size-5 min-w-5 min-h-5" />
+                                        <span class="-mt-0.5">{success}</span>
+                                    </div>
+                                )}
+                                {error && (
+                                    <div class="w-full rounded-md bg-destructive text-destructive-foreground px-4 py-3 flex items-center gap-x-2">
+                                        <CircleX class="size-5 min-w-5 min-h-5" />
+                                        <span class="-mt-0.5">{error}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    }
+                    <Card class="w-full bg-card/50">
+                        <CardContent>
+                            <form
+                                id="login-form"
+                                method="post"
+                                class="contents"
+                                data-astro-reload
+                            >
+                                <Button
+                                    type="submit"
+                                    name="method"
+                                    value="google"
+                                    class="w-full cursor-pointer"
+                                    size="lg"
+                                >
+                                    <Icon name="simple-icons:google" class="-mb-px" />
+                                    Continue with Google
+                                </Button>
+                            </form>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <div class="flex justify-center items-center flex-col gap-y-4 text-center text-sm text-muted-foreground max-w-md">
+                    <p class="font-medium [&_a]:hover:text-primary-2 [&_a]:underline grid grid-cols-9">
+                        <a href="/privacy" class="text-right col-span-4">Privacy Policy</a>
+                        <span class="mx-4">·</span>
+                        <a href="/terms" class="text-left col-span-4">Terms of Service</a>
+                    </p>
+                    <p class="[&_a]:text-primary-2">
+                        Having trouble logging in? Please contact one of our staff for help
+                        or contact via email to <a href="mailto:support@hackyouth.id">support@hackyouth.id</a>.
+                    </p>
+                </div>
+            </section>
+        </div>
+
+        <script>
+            document.addEventListener("submit", (event) => {
+                const form = event.target;
+
+                if (!(form instanceof HTMLFormElement) || form.id !== "login-form") {
+                    return;
+                }
+
+                document.getElementById("toast")?.remove();
+
+                const submitter = event.submitter;
+                const method =
+                    submitter instanceof HTMLButtonElement && submitter.name === "method"
+                        ? submitter.value
+                        : null;
+
+                if (method === "google") {
+                    const googleButton = form.querySelector<HTMLButtonElement>(
+                        'button[name="method"][value="google"]',
+                    );
+                    setTimeout(() => {
+                        if (googleButton) googleButton.disabled = true;
+                    }, 10);
+                }
+            });
+        </script>
+</Layout>

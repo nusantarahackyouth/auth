@@ -1,0 +1,263 @@
+---
+import { Card, CardContent } from "@/components/ui/card";
+---
+
+<Card
+    id="welcome-form-router"
+    class="w-full overflow-hidden bg-card/50"
+    aria-live="polite"
+>
+    <CardContent data-welcome-form-content>
+        <slot />
+    </CardContent>
+</Card>
+
+<script>
+    const PARTIAL_HEADER = "X-Welcome-Fragment";
+    const TRANSITION_MS = 250;
+    const TRANSITION_EASING = "cubic-bezier(.22,.61,.36,1)";
+    const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+    const animationOptions: KeyframeAnimationOptions = {
+        duration: TRANSITION_MS,
+        easing: TRANSITION_EASING,
+        fill: "forwards",
+    };
+
+    function getRouter() {
+        return document.querySelector<HTMLElement>("#welcome-form-router");
+    }
+
+    function getHeaderElements() {
+        return Array.from(
+            document.querySelectorAll<HTMLElement>("#title h2, #title h1"),
+        );
+    }
+
+    function showsHeader(form: HTMLElement) {
+        return (
+            form.dataset.welcomeStep === "0" ||
+            form.dataset.welcomeComplete === "true"
+        );
+    }
+
+    function updateDescription(form: HTMLElement) {
+        const description = document.querySelector<HTMLElement>(
+            "#welcome-content > [data-welcome-description]",
+        );
+        const nextDescription = form.dataset.welcomeDescription;
+        if (description && nextDescription) {
+            description.textContent = nextDescription;
+        }
+    }
+
+    async function animateHeader(show: boolean) {
+        const elements = getHeaderElements();
+        if (elements.length === 0) return;
+
+        const motions = elements.map(
+            (element) =>
+                element.querySelector<HTMLElement>(
+                    "[data-welcome-header-motion]",
+                ) ?? element,
+        );
+        const heights = elements.map((element) =>
+            show ? element.scrollHeight : element.offsetHeight,
+        );
+
+        if (!show) {
+            elements.forEach((element, index) => {
+                element.style.maxHeight = `${heights[index]}px`;
+                element.style.overflow = "hidden";
+            });
+        }
+
+        if (!reducedMotion.matches) {
+            const animations = elements.flatMap((element, index) => {
+                const height = heights[index];
+                const expanded = { maxHeight: `${height}px` };
+                const collapsed = { maxHeight: "0px" };
+                const motionVisible = {
+                    opacity: 1,
+                    transform: "translateY(0)",
+                };
+                const motionHidden = {
+                    opacity: 0,
+                    transform: `translateY(-${height}px)`,
+                };
+
+                return [
+                    element.animate(
+                        show
+                            ? [collapsed, expanded]
+                            : [expanded, collapsed],
+                        animationOptions,
+                    ),
+                    motions[index].animate(
+                        show
+                            ? [motionHidden, motionVisible]
+                            : [motionVisible, motionHidden],
+                        animationOptions,
+                    ),
+                ];
+            });
+
+            await Promise.allSettled(
+                animations.map((animation) => animation.finished),
+            );
+            animations.forEach((animation) => animation.cancel());
+        }
+
+        elements.forEach((element) => {
+            if (show) {
+                element.style.removeProperty("max-height");
+                element.style.removeProperty("overflow");
+            } else {
+                element.style.maxHeight = "0px";
+                element.style.overflow = "hidden";
+            }
+        });
+        motions.forEach((motion, index) => {
+            if (show) {
+                motion.style.removeProperty("opacity");
+                motion.style.removeProperty("transform");
+            } else {
+                motion.style.opacity = "0";
+                motion.style.transform = `translateY(-${heights[index]}px)`;
+            }
+        });
+    }
+
+    async function loadWelcomeForm(url: string, init?: RequestInit) {
+        const router = getRouter();
+        const content = router?.querySelector<HTMLElement>(
+            "[data-welcome-form-content]",
+        );
+        if (!router || !content || router.dataset.loading === "true") return;
+
+        router.dataset.loading = "true";
+        router.setAttribute("aria-busy", "true");
+        const controls = content.querySelectorAll<
+            HTMLButtonElement | HTMLInputElement
+        >("button, input");
+        controls.forEach((element) => (element.disabled = true));
+
+        try {
+            const headers = new Headers(init?.headers);
+            headers.set(PARTIAL_HEADER, "1");
+
+            const response = await fetch(url, {
+                ...init,
+                headers,
+                credentials: "same-origin",
+            });
+
+            if (
+                !response.ok ||
+                response.headers.get(PARTIAL_HEADER) !== "1"
+            ) {
+                window.location.assign(response.url || url);
+                return;
+            }
+
+            const template = document.createElement("template");
+            template.innerHTML = (await response.text()).trim();
+            const nextForm = template.content.querySelector<HTMLElement>(
+                "[data-welcome-form]",
+            );
+            if (!nextForm) throw new Error("Welcome form fragment is missing");
+
+            const currentForm = content.querySelector<HTMLElement>(
+                "[data-welcome-form]",
+            );
+            const currentShowsHeader = currentForm
+                ? showsHeader(currentForm)
+                : true;
+            const nextShowsHeader = showsHeader(nextForm);
+
+            const currentHeight = router.offsetHeight;
+            router.style.height = `${currentHeight}px`;
+            router.style.transition = "none";
+
+            content.replaceChildren(nextForm);
+            updateDescription(nextForm);
+
+            const headerAnimation =
+                currentShowsHeader !== nextShowsHeader
+                    ? animateHeader(nextShowsHeader)
+                    : Promise.resolve();
+
+            router.style.height = "auto";
+            const nextHeight = router.offsetHeight;
+            router.style.height = `${currentHeight}px`;
+            void router.offsetHeight;
+            router.style.transition = `height ${TRANSITION_MS}ms ${TRANSITION_EASING}`;
+
+            if (reducedMotion.matches) {
+                router.style.removeProperty("height");
+                router.style.removeProperty("transition");
+            } else {
+                requestAnimationFrame(() => {
+                    router.style.height = `${nextHeight}px`;
+                });
+
+                window.setTimeout(() => {
+                    router.style.removeProperty("height");
+                    router.style.removeProperty("transition");
+                }, TRANSITION_MS);
+            }
+
+            await headerAnimation;
+            if (nextForm.dataset.welcomeComplete === "true") {
+                document.dispatchEvent(new Event("welcome:complete"));
+            }
+            nextForm.querySelector<HTMLElement>("input, button, a")?.focus();
+        } catch {
+            window.location.assign(url);
+        } finally {
+            controls.forEach((element) => (element.disabled = false));
+            delete router.dataset.loading;
+            router.removeAttribute("aria-busy");
+        }
+    }
+
+    document.addEventListener(
+        "submit",
+        (event) => {
+            const form = event.target;
+            if (
+                !(form instanceof HTMLFormElement) ||
+                !form.matches("#welcome-form-router form[data-welcome-form]")
+            ) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+
+            void loadWelcomeForm(form.action, {
+                method: form.method,
+                body: new FormData(form, event.submitter),
+            });
+        },
+        true,
+    );
+
+    document.addEventListener(
+        "click",
+        (event) => {
+            const target = event.target;
+            const back =
+                target instanceof Element
+                    ? target.closest<HTMLAnchorElement>(
+                          "#welcome-form-router a[data-welcome-back]",
+                      )
+                    : null;
+            if (!back || event.defaultPrevented) return;
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            void loadWelcomeForm(back.href);
+        },
+        true,
+    );
+</script>

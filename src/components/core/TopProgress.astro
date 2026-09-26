@@ -1,0 +1,62 @@
+<div
+    id="top-progress"
+    transition:persist
+    aria-hidden="true"
+    class="pointer-events-none fixed inset-x-0 top-0 z-999999 h-0.75 hidden overflow-hidden"
+>
+    <div
+        data-progress-indicator
+        class="animate-progress absolute h-full w-[35%] min-w-80 rounded-full bg-primary motion-reduce:left-0 motion-reduce:w-full motion-reduce:min-w-0 motion-reduce:animate-none"
+    ></div>
+</div>
+
+<script>
+    const SHOW_DELAY_MS = 300;
+    const HIDE_TIMEOUT_MS = 900;
+    let showTimeout = 0;
+    let cancelHide = () => {};
+
+    function cancelShow() {
+        window.clearTimeout(showTimeout);
+        showTimeout = 0;
+    }
+
+    document.addEventListener("astro:before-preparation", () => {
+        cancelShow();
+        cancelHide();
+
+        const progress = document.getElementById("top-progress");
+        progress?.classList.add("hidden");
+        showTimeout = window.setTimeout(() => {
+            progress?.classList.remove("hidden");
+            showTimeout = 0;
+        }, SHOW_DELAY_MS);
+    });
+
+    document.addEventListener("astro:page-load", () => {
+        cancelShow();
+
+        const progress = document.getElementById("top-progress");
+        const indicator = progress?.querySelector(
+            "[data-progress-indicator]",
+        );
+        if (!progress || !indicator || progress.classList.contains("hidden")) {
+            return;
+        }
+
+        let timeout = 0;
+        const cleanup = () => {
+            window.clearTimeout(timeout);
+            indicator.removeEventListener("animationiteration", hide);
+            if (cancelHide === cleanup) cancelHide = () => {};
+        };
+        const hide = () => {
+            cleanup();
+            progress.classList.add("hidden");
+        };
+
+        indicator.addEventListener("animationiteration", hide, { once: true });
+        timeout = window.setTimeout(hide, HIDE_TIMEOUT_MS);
+        cancelHide = cleanup;
+    });
+</script>

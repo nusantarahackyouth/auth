@@ -1,0 +1,115 @@
+---
+import type { WelcomeResult } from "@/actions/auth/welcome";
+import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+
+export type Props = WelcomeResult & {
+    error?: string | null;
+    redirectTo?: string;
+};
+
+const {
+    step,
+    complete,
+    data,
+    error = null,
+    redirectTo = "/",
+} = Astro.props as Props;
+const isProfileStep = step === 1;
+const welcomeAction =
+    redirectTo === "/"
+        ? "/welcome"
+        : `/welcome?${new URLSearchParams({ redirect_to: redirectTo })}`;
+const submitClass = isProfileStep
+    ? "order-1 w-full cursor-pointer sm:order-2"
+    : "w-full cursor-pointer";
+const description = complete
+    ? "All set! Your profile is now set up."
+    : isProfileStep
+      ? "Choose the display name you want to use for your profile."
+      : "Before you continue, please complete these info details so we can get your profile set up.";
+---
+
+{
+    complete ? (
+        <div
+            data-welcome-form
+            data-welcome-step={step}
+            data-welcome-complete="true"
+            data-welcome-description={description}
+            class="flex flex-col gap-4 text-center"
+        >
+            <Button
+                as="a"
+                href={redirectTo}
+                data-welcome-exit
+                class="w-full cursor-pointer"
+                size="lg"
+            >
+                Continue
+            </Button>
+        </div>
+    ) : (
+        <form
+            data-welcome-form
+            data-welcome-step={step}
+            data-welcome-complete="false"
+            data-welcome-description={description}
+            method="post"
+            action={welcomeAction}
+            class="flex flex-col gap-4"
+        >
+            <input type="hidden" name="step" value={step} />
+
+            {isProfileStep && (
+                <Field>
+                    <FieldLabel for="welcome-name">Display name</FieldLabel>
+                    <Input
+                        id="welcome-name"
+                        name="name"
+                        value={data.name ?? ""}
+                        maxlength={255}
+                        autocomplete="name"
+                        placeholder="Enter your name"
+                        size="lg"
+                        required
+                    />
+                </Field>
+            )}
+
+            {error && (
+                <p class="text-destructive text-sm" role="alert">
+                    {error}
+                </p>
+            )}
+
+            <div
+                class:list={[
+                    "grid gap-3",
+                    isProfileStep && "sm:grid-cols-2",
+                ]}
+            >
+                {isProfileStep && (
+                    <Button
+                        as="a"
+                        href={welcomeAction}
+                        data-welcome-back
+                        class="order-2 w-full cursor-pointer sm:order-1"
+                        variant="outline"
+                        size="lg"
+                    >
+                        Back
+                    </Button>
+                )}
+                <Button
+                    type="submit"
+                    class={submitClass}
+                    size="lg"
+                >
+                    {isProfileStep ? "Save & Next" : "Continue"}
+                </Button>
+            </div>
+        </form>
+    )
+}

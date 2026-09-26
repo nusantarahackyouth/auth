@@ -1,0 +1,243 @@
+---
+// Based on <ClientRouter> from "astro:transitions"
+type Fallback = "none" | "animate" | "swap";
+
+export interface Props {
+    fallback?: Fallback;
+}
+
+const { fallback = "animate" } = Astro.props;
+---
+
+<style is:global>
+    /* Route announcer */
+    .astro-route-announcer {
+        position: absolute;
+        left: 0;
+        top: 0;
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+        overflow: hidden;
+        white-space: nowrap;
+        width: 1px;
+        height: 1px;
+    }
+
+    @keyframes astroFadeInOut {
+        from {
+            opacity: 1;
+        }
+        to {
+            opacity: 0;
+        }
+    }
+
+    @keyframes astroFadeIn {
+        from {
+            opacity: 0;
+            mix-blend-mode: plus-lighter;
+        }
+        to {
+            opacity: 1;
+            mix-blend-mode: plus-lighter;
+        }
+    }
+
+    @keyframes astroFadeOut {
+        from {
+            opacity: 1;
+            mix-blend-mode: plus-lighter;
+        }
+        to {
+            opacity: 0;
+            mix-blend-mode: plus-lighter;
+        }
+    }
+
+    @keyframes astroSlideFromRight {
+        from {
+            transform: translateX(100%);
+        }
+    }
+
+    @keyframes astroSlideFromLeft {
+        from {
+            transform: translateX(-100%);
+        }
+    }
+
+    @keyframes astroSlideToRight {
+        to {
+            transform: translateX(100%);
+        }
+    }
+
+    @keyframes astroSlideToLeft {
+        to {
+            transform: translateX(-100%);
+        }
+    }
+
+    @media (prefers-reduced-motion) {
+        ::view-transition-group(*),
+        ::view-transition-old(*),
+        ::view-transition-new(*) {
+            animation: none !important;
+        }
+
+        [data-astro-transition-scope] {
+            animation: none !important;
+        }
+    }
+</style>
+<meta name="astro-view-transitions-enabled" content="true" />
+<meta name="astro-view-transitions-fallback" content={fallback} />
+<script>
+    import type { Options } from "astro:transitions/client";
+    import { supportsViewTransitions, navigate } from "astro:transitions/client";
+    // Importing astro:prefetch requires the prefetch config to be enabled.
+    // @ts-ignore
+    import { init } from "astro/virtual-modules/prefetch.js";
+
+    type Fallback = "none" | "animate" | "swap";
+    let lastClickedElementLeavingWindow: EventTarget | null = null;
+
+    function getFallback(): Fallback {
+        const element = document.querySelector(
+            '[name="astro-view-transitions-fallback"]',
+        );
+        if (element) {
+            return element.getAttribute("content") as Fallback;
+        }
+        return "animate";
+    }
+
+    function isReloadElement(element: HTMLElement | SVGAElement): boolean {
+        return element.dataset.astroReload !== undefined;
+    }
+
+    const leavesWindow = (event: MouseEvent) =>
+        (event.button && event.button !== 0) ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.shiftKey;
+
+    if (supportsViewTransitions || getFallback() !== "none") {
+        if (
+            import.meta.env.DEV &&
+            window.matchMedia("(prefers-reduced-motion)").matches
+        ) {
+            console.warn(
+                "[transitions]: all view transition animations, including fallback animation, are disabled as this device has the prefer-reduced-motion setting enabled.",
+            );
+        }
+
+        document.addEventListener("astro:before-swap", (event) => {
+            const isDark = document.documentElement.classList.contains("dark");
+            event.newDocument.documentElement.classList.toggle("dark", isDark);
+        });
+
+        document.addEventListener("click", (event) => {
+            let link = event.target;
+
+            lastClickedElementLeavingWindow = leavesWindow(event) ? link : null;
+
+            if (event.composed) {
+                link = event.composedPath()[0];
+            }
+            if (link instanceof Element) {
+                link = link.closest("a, area");
+            }
+            if (
+                !(link instanceof HTMLAnchorElement) &&
+                !(link instanceof SVGAElement) &&
+                !(link instanceof HTMLAreaElement)
+            ) {
+                return;
+            }
+
+            const linkTarget =
+                link instanceof HTMLElement ? link.target : link.target.baseVal;
+            const href = link instanceof HTMLElement ? link.href : link.href.baseVal;
+            const origin = new URL(href, location.href).origin;
+            if (
+                isReloadElement(link) ||
+                link.hasAttribute("download") ||
+                !link.href ||
+                (linkTarget && linkTarget !== "_self") ||
+                origin !== location.origin ||
+                lastClickedElementLeavingWindow ||
+                event.defaultPrevented
+            ) {
+                return;
+            }
+
+            event.preventDefault();
+            navigate(href, {
+                history: link.dataset.astroHistory === "replace" ? "replace" : "auto",
+                sourceElement: link,
+            });
+        });
+
+        document.addEventListener("submit", (event) => {
+            const element = event.target as HTMLElement;
+            const submitter = event.submitter;
+
+            const clickedWithKeys =
+                submitter && submitter === lastClickedElementLeavingWindow;
+            lastClickedElementLeavingWindow = null;
+
+            if (
+                element.tagName !== "FORM" ||
+                event.defaultPrevented ||
+                isReloadElement(element) ||
+                clickedWithKeys
+            ) {
+                return;
+            }
+
+            const form = element as HTMLFormElement;
+            const formData = new FormData(form, submitter);
+            const formAction =
+                typeof form.action === "string"
+                    ? form.action
+                    : form.getAttribute("action");
+            const formMethod =
+                typeof form.method === "string"
+                    ? form.method
+                    : form.getAttribute("method");
+            let action =
+                submitter?.getAttribute("formaction") ??
+                formAction ??
+                location.pathname;
+            const method =
+                submitter?.getAttribute("formmethod") ?? formMethod ?? "get";
+
+            if (
+                method === "dialog" ||
+                location.origin !== new URL(action, location.href).origin
+            ) {
+                return;
+            }
+
+            const options: Options = { sourceElement: submitter ?? form };
+            if (method === "get") {
+                const params = new URLSearchParams(formData as any);
+                const url = new URL(action);
+                url.search = params.toString();
+                action = url.toString();
+            } else {
+                options.formData = formData;
+            }
+
+            event.preventDefault();
+            navigate(action, options);
+        });
+
+        // @ts-expect-error injected by vite-plugin-transitions for tree shaking
+        if (!__PREFETCH_DISABLED__) {
+            init({ prefetchAll: true });
+        }
+    }
+</script>
