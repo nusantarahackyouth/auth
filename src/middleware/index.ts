@@ -1,10 +1,5 @@
 import type { MiddlewareHandler } from "astro";
-import {
-    oauthAuthorizationServerMetadata,
-    oauthProviderPaths,
-    openIdProviderMetadata,
-    withAuth,
-} from "@/lib/auth";
+import { oauthProviderPaths } from "@/lib/auth/routes";
 
 // Used for bypassing astro layer
 // and immediately goes to better auth own route handling
@@ -21,6 +16,12 @@ const oauthMetadataRoutes = new Set<string>([
 
 export const onRequest: MiddlewareHandler = async (c, next) => {
     if (betterAuthOauthRoutes.has(c.url.pathname)) {
+        // Lazy import auth to avoid loading it on every request
+        const {
+            oauthAuthorizationServerMetadata,
+            openIdProviderMetadata,
+            withAuth,
+        } = await import("@/lib/auth");
         const response = await withAuth((auth) => auth.handler(c.request));
 
         if (!response.ok || !oauthMetadataRoutes.has(c.url.pathname)) {

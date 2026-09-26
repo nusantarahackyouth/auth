@@ -4,6 +4,7 @@ import { betterAuth } from "better-auth";
 import { admin, jwt, magicLink } from "better-auth/plugins";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import { adminRoleSettings, minimumAdminAccessPerms } from "@/lib/auth/admin";
+import { oauthProviderPaths } from "@/lib/auth/routes";
 
 import { i18n } from "@better-auth/i18n";
 import { lang } from "@/lib/auth/lang";
@@ -21,16 +22,7 @@ if (!authBaseUrl) {
     throw new Error("BETTER_AUTH_URL is required");
 }
 
-export const oauthProviderPaths = {
-    authorization: "/authorize",
-    token: "/oauth2/token",
-    userInfo: "/oauth2/userinfo",
-    introspection: "/oauth2/introspect",
-    revocation: "/oauth2/revoke",
-    jwks: "/oauth2/jwks",
-    openIdConfiguration: "/.well-known/openid-configuration",
-    authorizationServerMetadata: "/.well-known/oauth-authorization-server",
-} as const;
+export { oauthProviderPaths };
 
 const oauthScopes = ["openid", "profile", "email", "offline_access", "roles"] as const;
 
