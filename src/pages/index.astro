@@ -2,6 +2,8 @@
 import Layout from "@/layouts/Layout.astro";
 import { withAuth } from "@/lib/auth";
 
+export const prerender = false;
+
 const authSession = await withAuth((auth) =>
     auth.api.getSession({
         headers: Astro.request.headers,

@@ -14,6 +14,9 @@ import Logo from "@/assets/logo.png";
 import Background from "@/assets/mt-bg.png";
 
 import { handleLoginPost } from "./_post";
+
+export const prerender = false;
+
 const loginResult = await handleLoginPost(Astro);
 if (loginResult instanceof Response) return loginResult;
 

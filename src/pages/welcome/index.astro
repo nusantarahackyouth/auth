@@ -16,6 +16,8 @@ import Background from "@/assets/mt-bg.png";
 // Temporary value for sake of development
 const DISABLE_WELCOME_ANIMATION = false;
 
+export const prerender = false;
+
 const requestedRedirectTo = Astro.url.searchParams.get("redirect_to");
 let redirectTo = "/";
 if (
