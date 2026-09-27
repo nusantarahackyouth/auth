@@ -15,8 +15,7 @@ import * as schema from "@/lib/db/schema";
 
 import { sendMagicLinkEmail, sendVerifyDeletionEmail } from "@/lib/utils/email";
 
-const authBaseUrl =
-    env.BETTER_AUTH_URL ?? process.env.BETTER_AUTH_URL;
+const authBaseUrl = env.BETTER_AUTH_URL ?? process.env.BETTER_AUTH_URL;
 
 if (!authBaseUrl) {
     throw new Error("BETTER_AUTH_URL is required");
@@ -24,8 +23,13 @@ if (!authBaseUrl) {
 
 export { oauthProviderPaths };
 
-const oauthScopes = ["openid", "profile", "email", "offline_access", "roles"] as const;
-
+const oauthScopes = [
+    "openid",
+    "profile",
+    "email",
+    "offline_access",
+    "roles",
+] as const;
 const oauthClaims = [
     "sub",
     "name",
@@ -34,9 +38,11 @@ const oauthClaims = [
     "email_verified",
     "roles",
 ] as const;
-
 export const oauthAuthorizationServerMetadata = {
-    authorization_endpoint: new URL(oauthProviderPaths.authorization, authBaseUrl).toString(),
+    authorization_endpoint: new URL(
+        oauthProviderPaths.authorization,
+        authBaseUrl,
+    ).toString(),
     scopes_supported: oauthScopes,
     token_endpoint_auth_methods_supported: [
         "none",
@@ -45,7 +51,6 @@ export const oauthAuthorizationServerMetadata = {
         "private_key_jwt",
     ],
 } as const;
-
 export const openIdProviderMetadata = {
     ...oauthAuthorizationServerMetadata,
     claims_supported: oauthClaims,
@@ -97,13 +102,13 @@ export function createAuth(db: Database) {
                 defaultRole: "user",
                 bannedUserMessage: lang.BANNED_USER,
             }),
-            // magicLink({
-            //     sendMagicLink: async ({ email, token }, ctx) => {
-            //         return sendMagicLinkEmail(email, token, ctx?.request);
-            //     },
-            //     expiresIn: 600,
-            //     disableSignUp: isSignupDisabled("magic"),
-            // }),
+            magicLink({
+                sendMagicLink: async ({ email, token }, ctx) => {
+                    return sendMagicLinkEmail(email, token, ctx?.request);
+                },
+                expiresIn: 600,
+                disableSignUp: isSignupDisabled("magic"),
+            }),
             jwt({
                 disableSettingJwtHeader: true,
                 jwks: {
@@ -146,7 +151,10 @@ export function createAuth(db: Database) {
                 clientSecret:
                     env.GOOGLE_CLIENT_SECRET ??
                     (process.env.GOOGLE_CLIENT_SECRET as string),
-                redirectURI: new URL("/callback/google", authBaseUrl).toString(),
+                redirectURI: new URL(
+                    "/callback/google",
+                    authBaseUrl,
+                ).toString(),
                 requireEmailVerification: true,
                 disableSignUp: isSignupDisabled("google"),
             },

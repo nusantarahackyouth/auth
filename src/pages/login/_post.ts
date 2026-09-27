@@ -47,6 +47,10 @@ export async function handleLoginPost(
         if (result.success && result.url) {
             return Astro.redirect(result.url, 303);
         }
+
+        if (result.success && method == "magic") {
+            state.success = "Email sent! Check your mailbox to continue.";
+        }
     }
 
     return state;

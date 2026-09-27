@@ -5,8 +5,14 @@ import Layout from "@/layouts/Layout.astro";
 import { consumeToast } from "@/lib/utils/toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+    InputGroup,
+    InputGroupAddon,
+    InputGroupButton,
+    InputGroupInput,
+} from "@/components/ui/input-group";
 
-import { CircleCheck, CircleX } from '@lucide/astro';
+import { ArrowRight, CircleCheck, CircleX, Mail } from '@lucide/astro';
 import { Icon } from "astro-icon/components";
 
 import RingBackground from "@/components/animation/RingBackground.astro";
@@ -74,12 +80,11 @@ if (toast?.[0] === "success") success = toast[1];
                         )
                     }
                     <Card class="w-full bg-card/50">
-                        <CardContent>
+                        <CardContent class="flex flex-col gap-y-4">
                             <form
                                 id="login-form"
                                 method="post"
                                 class="contents"
-                                data-astro-reload
                             >
                                 <Button
                                     type="submit"
@@ -87,10 +92,52 @@ if (toast?.[0] === "success") success = toast[1];
                                     value="google"
                                     class="w-full cursor-pointer"
                                     size="lg"
+                                    aria-label="Click to login with Google"
+                                    title="Click to login with Google"
                                 >
                                     <Icon name="simple-icons:google" class="-mb-px" />
                                     Continue with Google
                                 </Button>
+                            </form>
+
+                            <div class="flex items-center gap-3 px-4">
+                                <hr class="flex-1" />
+                                <span class="whitespace-nowrap text-muted-foreground text-sm">Or login with email</span>
+                                <hr class="flex-1" />
+                            </div>
+
+                            <form
+                                id="login-form"
+                                method="post"
+                                class="contents"
+                            >
+                                <InputGroup size="lg">
+                                    <InputGroupAddon class="pl-4 pr-2">
+                                        <Mail aria-hidden="true" />
+                                    </InputGroupAddon>
+                                    <InputGroupInput
+                                        type="email"
+                                        name="login_hint"
+                                        autocomplete="email"
+                                        placeholder="hi@hackyouth.id"
+                                        required
+                                    />
+                                    <InputGroupAddon align="inline-end" class="pr-1.5">
+                                        <InputGroupButton
+                                            type="submit"
+                                            name="method"
+                                            value="magic"
+                                            size="sm"
+                                            disabled="true"
+                                            variant="default"
+                                            class="cursor-pointer"
+                                            aria-label="Send magic link"
+                                            title="Send magic link"
+                                        >
+                                            <ArrowRight aria-hidden="true" class="size-6 sm:mx-2" />
+                                        </InputGroupButton>
+                                    </InputGroupAddon>
+                                </InputGroup>
                             </form>
                         </CardContent>
                     </Card>
@@ -111,6 +158,36 @@ if (toast?.[0] === "success") success = toast[1];
         </div>
 
         <script>
+            const initializedMagicInputs = new WeakSet<HTMLInputElement>();
+
+            function setupMagicLogin() {
+                const magicInput = document.querySelector<HTMLInputElement>(
+                    'form#login-form input[name="login_hint"]',
+                );
+                const form = document.querySelector<HTMLFormElement>(
+                    'form#login-form',
+                );
+                const magicButton = document?.querySelector<HTMLButtonElement>(
+                    'form#login-form button[name="method"][value="magic"]',
+                );
+                if (!magicInput || !form || !magicButton) return;
+
+                const updateMagicButton = () => {
+                    magicButton.disabled =
+                        form.dataset.submitting === "true" ||
+                        magicInput.value.trim() === "";
+                };
+
+                updateMagicButton();
+                if (initializedMagicInputs.has(magicInput)) return;
+
+                initializedMagicInputs.add(magicInput);
+                magicInput.addEventListener("input", updateMagicButton);
+            }
+
+            setupMagicLogin();
+            document.addEventListener("astro:page-load", setupMagicLogin);
+
             document.addEventListener("submit", (event) => {
                 const form = event.target;
 
@@ -119,21 +196,22 @@ if (toast?.[0] === "success") success = toast[1];
                 }
 
                 document.getElementById("toast")?.remove();
+                form.dataset.submitting = "true";
 
-                const submitter = event.submitter;
-                const method =
-                    submitter instanceof HTMLButtonElement && submitter.name === "method"
-                        ? submitter.value
-                        : null;
-
-                if (method === "google") {
-                    const googleButton = form.querySelector<HTMLButtonElement>(
-                        'button[name="method"][value="google"]',
-                    );
-                    setTimeout(() => {
-                        if (googleButton) googleButton.disabled = true;
-                    }, 10);
-                }
+                const googleButton = document.querySelector<HTMLButtonElement>(
+                    'form#login-form button[name="method"][value="google"]',
+                );
+                const magicInput = document.querySelector<HTMLInputElement>(
+                    'form#login-form input[name="login_hint"]',
+                );
+                const magicButton = document.querySelector<HTMLButtonElement>(
+                    'form#login-form button[name="method"][value="magic"]',
+                );
+                setTimeout(() => {
+                    if (googleButton) googleButton.disabled = true;
+                    if (magicInput) magicInput.disabled = true;
+                    if (magicButton) magicButton.disabled = true;
+                }, 10);
             });
         </script>
 </Layout>
