@@ -188,9 +188,15 @@ const {
 </div>
 
 <script>
-  import { createDialog } from "@data-slot/dialog";
+  import { create } from "@data-slot/dialog";
 
-  document
-    .querySelectorAll<HTMLElement>('[data-slot="dialog"]')
-    .forEach((el) => createDialog(el));
+  let controllers = create(document);
+
+  document.addEventListener("astro:before-swap", () => {
+    controllers.forEach((controller) => controller.destroy());
+    controllers = [];
+  });
+  document.addEventListener("astro:page-load", () => {
+    controllers.push(...create(document));
+  });
 </script>

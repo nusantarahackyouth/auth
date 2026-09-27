@@ -2,6 +2,7 @@
 import { Image } from "astro:assets";
 
 import Layout from "@/layouts/Layout.astro";
+import { consumeToast } from "@/lib/utils/toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -23,21 +24,9 @@ if (loginResult instanceof Response) return loginResult;
 let { error, success } = loginResult;
 
 // Handle external toast
-const toastCookie = Astro.cookies.get("nhy-toast");
-if (toastCookie) {
-    Astro.cookies.delete("nhy-toast", { path: "/" });
-    try {
-        const toast: unknown = JSON.parse(toastCookie.value);
-        if (
-            Array.isArray(toast) &&
-            toast.length === 2 &&
-            typeof toast[1] === "string"
-        ) {
-            if (toast[0] === 0) error = toast[1];
-            if (toast[0] === 1) success = toast[1];
-        }
-    } catch {}
-}
+const toast = consumeToast(Astro.cookies);
+if (toast?.[0] === "error") error = toast[1];
+if (toast?.[0] === "success") success = toast[1];
 
 ---
 

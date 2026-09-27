@@ -12,7 +12,7 @@ const { class: className = "", ...rest } = Astro.props as Props;
 <div
   {...rest}
   data-slot="dialog-title"
-  class={cn("leading-none font-medium cn-font-heading", className)}
+  class={cn("leading-none font-semibold text-lg cn-font-sans", className)}
 >
   <slot />
 </div>

@@ -1,8 +1,6 @@
 ---
 import { CircleAlert, CircleCheck, CircleX, Info, X } from "@lucide/astro";
-
-type ToastKind = 0 | 1 | 2 | 3;
-type Toast = readonly [ToastKind, string];
+import type { Toast } from "@/lib/utils/toast";
 
 interface Props {
     toast?: Toast;
@@ -11,24 +9,24 @@ interface Props {
 const { toast } = Astro.props;
 
 const variants = {
-    0: {
+    error: {
         icon: CircleX,
         class: "bg-destructive text-destructive-foreground",
         role: "alert",
     },
-    1: {
+    success: {
         icon: CircleCheck,
-        class: "bg-success text-destructive-foreground",
+        class: "bg-success text-success-foreground",
         role: "status",
     },
-    2: {
+    warn: {
         icon: CircleAlert,
-        class: "bg-accent text-accent-foreground",
+        class: "bg-warning text-warning-foreground",
         role: "alert",
     },
-    3: {
+    info: {
         icon: Info,
-        class: "bg-primary text-primary-foreground",
+        class: "bg-info text-info-foreground",
         role: "status",
     },
 } as const;

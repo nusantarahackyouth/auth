@@ -13,7 +13,7 @@
     "r2_buckets": [
         {
             "binding": "S3",
-            "bucket_name": "nhy-auth-storage"
+            "bucket_name": "nhy-user-cdn"
         }
     ],
     "hyperdrive": [

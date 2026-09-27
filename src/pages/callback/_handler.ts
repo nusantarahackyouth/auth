@@ -1,9 +1,7 @@
-import type { APIContext, APIRoute } from "astro";
+import type { APIRoute } from "astro";
 
 import { lang } from "@/lib/auth/lang";
-
-type ToastKind = 0 | 1 | 2 | 3;
-type Toast = [ToastKind, string];
+import { setToast } from "@/lib/utils/toast";
 
 type CallbackOperationContext = {
     request: Request;
@@ -40,18 +38,6 @@ function removeErrorParams(url: URL): void {
     }
 }
 
-function setToast(
-    cookies: APIContext["cookies"],
-    url: URL,
-    toast: Toast,
-): void {
-    cookies.set("nhy-toast", JSON.stringify(toast), {
-        path: "/",
-        httpOnly: true,
-        sameSite: "lax",
-        secure: url.protocol === "https:",
-    });
-}
 
 export function createCallbackHandler(
     operation: CallbackOperation,
@@ -65,7 +51,7 @@ export function createCallbackHandler(
     return async ({ request, cookies }) => {
         const callbackUrl = new URL(request.url);
         const respondWithError = (code: string) => {
-            setToast(cookies, callbackUrl, [0, getErrorMessage(code)]);
+            setToast(cookies, callbackUrl, ["error", getErrorMessage(code)]);
 
             return new Response(null, {
                 status: 302,
@@ -99,12 +85,15 @@ export function createCallbackHandler(
             const callbackError = redirectUrl.searchParams.get("error");
 
             if (!callbackError) {
-                setToast(cookies, callbackUrl, [1, successMessage]);
+                setToast(cookies, callbackUrl, ["success", successMessage]);
 
                 return new Response(null, { status, headers });
             }
 
-            setToast(cookies, callbackUrl, [0, getErrorMessage(callbackError)]);
+            setToast(cookies, callbackUrl, [
+                            "error",
+                            getErrorMessage(callbackError),
+                        ]);
             removeErrorParams(redirectUrl);
             headers.set(
                 "location",

@@ -141,6 +141,15 @@ import { Card, CardContent } from "@/components/ui/card";
         >("button, input");
         controls.forEach((element) => (element.disabled = true));
 
+        const back = content.querySelector<HTMLAnchorElement>(
+            "a[data-welcome-back]",
+        );
+        const backTabIndex: string | null = back
+                    ? back.getAttribute("tabindex")
+                    : null;
+        back?.setAttribute("aria-disabled", "true");
+        if (back) back.tabIndex = -1;
+
         try {
             const headers = new Headers(init?.headers);
             headers.set(PARTIAL_HEADER, "1");
@@ -215,6 +224,11 @@ import { Card, CardContent } from "@/components/ui/card";
             window.location.assign(url);
         } finally {
             controls.forEach((element) => (element.disabled = false));
+            back?.removeAttribute("aria-disabled");
+            if (back) {
+                if (backTabIndex === null) back.removeAttribute("tabindex");
+                else back.setAttribute("tabindex", backTabIndex);
+            }
             delete router.dataset.loading;
             router.removeAttribute("aria-busy");
         }
@@ -256,6 +270,8 @@ import { Card, CardContent } from "@/components/ui/card";
 
             event.preventDefault();
             event.stopImmediatePropagation();
+            if (back.getAttribute("aria-disabled") === "true") return;
+
             void loadWelcomeForm(back.href);
         },
         true,

@@ -1,6 +1,7 @@
-import { login, welcome } from "./auth";
+import { login, logout, welcome } from "./auth";
 
 export const server = {
     login,
+    logout,
     welcome,
 };

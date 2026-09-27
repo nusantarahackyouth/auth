@@ -3,12 +3,16 @@ import { actions } from "astro:actions";
 import { Image } from "astro:assets";
 import { eq } from "drizzle-orm";
 
+import Layout from "@/layouts/Layout.astro";
+import LogoutModal from "@/components/modals/LogoutModal.astro";
+
 import type { WelcomeResult } from "@/actions/auth/welcome";
 import WelcomeForm from "@/components/features/welcome/WelcomeForm.astro";
 import WelcomeFormRouter from "@/components/features/welcome/WelcomeFormRouter.astro";
+
 import { withAuth } from "@/lib/auth";
 import { user as userTable } from "@/lib/db/schema";
-import Layout from "@/layouts/Layout.astro";
+import { setToast, consumeToast } from "@/lib/utils/toast";
 
 import Logo from "@/assets/logo.png";
 import Background from "@/assets/mt-bg.png";
@@ -51,6 +55,11 @@ if (!authState) {
     return Astro.redirect("/login");
 }
 if (authState.welcomeDoneAt) {
+    setToast(
+        Astro.cookies, 
+        Astro.url,
+        ["info", "You already finished your welcome setup."]
+    );
     return Astro.redirect(redirectTo);
 }
 const { user } = authState.session;
@@ -94,21 +103,8 @@ const welcomeFormProps = {
     redirectTo,
 };
 
-// If its a success toast, remove
-const toastCookie = Astro.cookies.get("nhy-toast");
-if (toastCookie) {
-    try {
-        const toast: unknown = JSON.parse(toastCookie.value);
-        if (
-            Array.isArray(toast) &&
-            toast.length === 2 &&
-            typeof toast[1] === "string"
-            && toast[0] == 1
-        ) {
-            Astro.cookies.delete("nhy-toast", { path: "/" });
-        }
-    } catch {}
-}
+// Suppress the successful-login toast during onboarding.
+consumeToast(Astro.cookies, "success");
 
 ---
 
@@ -163,7 +159,13 @@ if (toastCookie) {
 
                     <div class="flex justify-center items-center flex-col gap-y-0 text-center text-muted-foreground max-w-md">
                         <p>Logged in as {user.email}</p>
-                        <p>Wrong account?&nbsp;&nbsp;<span class="underline hover:text-primary-2 font-semibold cursor-pointer">Click here to sign out</span>.</p>
+                        <div class="flex items-baseline justify-center whitespace-nowrap">
+                            <span class="mr-2">Wrong account?</span>
+                            <LogoutModal>
+                                <span class="underline hover:text-primary-2 font-semibold cursor-pointer">Click here to sign out</span>
+                            </LogoutModal>
+                            <span>.</span>
+                        </div>
                     </div>
                 </section>
             </div>
@@ -512,7 +514,7 @@ if (toastCookie) {
                                     "transitionend",
                                     onTransitionEnd,
                                 );
-                                void navigate(destination);
+                                window.setTimeout(()=>void navigate(destination),500);
                             };
                             const onTransitionEnd = (transitionEvent: TransitionEvent) => {
                                 if (

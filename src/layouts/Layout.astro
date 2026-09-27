@@ -4,6 +4,8 @@ import TopProgress from "@/components/core/TopProgress.astro";
 import TopToast from "@/components/core/TopToast.astro";
 import "@/styles/globals.css";
 
+import { consumeToast } from "@/lib/utils/toast";
+
 interface Props {
     title?: string;
     handleToast?: boolean;
@@ -15,29 +17,7 @@ const {
     pageTransition = "none",
 } = Astro.props;
 
-type ToastKind = 0 | 1 | 2 | 3;
-type Toast = [ToastKind, string];
-
-let toast: Toast | undefined;
-const toastCookie = handleToast ? Astro.cookies.get("nhy-toast") : undefined;
-
-if (toastCookie) {
-    Astro.cookies.delete("nhy-toast", { path: "/" });
-
-    try {
-        const parsedToast: unknown = JSON.parse(toastCookie.value);
-        if (
-            Array.isArray(parsedToast) &&
-            parsedToast.length === 2 &&
-            Number.isInteger(parsedToast[0]) &&
-            parsedToast[0] >= 0 &&
-            parsedToast[0] <= 3 &&
-            typeof parsedToast[1] === "string"
-        ) {
-            toast = parsedToast as Toast;
-        }
-    } catch {}
-}
+const toast = handleToast ? consumeToast(Astro.cookies) : undefined;
 
 ---
 

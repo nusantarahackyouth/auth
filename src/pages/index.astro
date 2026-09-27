@@ -1,5 +1,6 @@
 ---
 import Layout from "@/layouts/Layout.astro";
+import LogoutModal from "@/components/modals/LogoutModal.astro";
 import { withAuth } from "@/lib/auth";
 
 export const prerender = false;
@@ -20,4 +21,7 @@ const { user } = authSession;
 
 <Layout title="Home">
     <p>You logged in! as {user.name} btw.</p>
+    <LogoutModal>
+        <a class="font-semibold underline">Logout?</a>
+    </LogoutModal>
 </Layout>

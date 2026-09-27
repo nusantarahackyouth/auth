@@ -1,0 +1,81 @@
+---
+import { actions } from "astro:actions";
+
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+
+---
+
+<Dialog>
+    <DialogTrigger asChild>
+        <slot />
+    </DialogTrigger>
+    <DialogContent class="sm:max-w-lg">
+        <DialogHeader>
+            <DialogTitle>Confirm Logout?</DialogTitle>
+            <DialogDescription>
+                You&apos;ll need to login again after this.
+            </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+            <Button data-slot="dialog-close" variant="outline" class="cursor-pointer">Cancel</Button>
+            <form method="post" action={actions.logout} class="contents" data-logout-form>
+                <Button type="submit" variant="destructive" class="cursor-pointer">Logout</Button>
+            </form>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
+
+<script>
+    document.addEventListener("submit", (event) => {
+        const form = event.target;
+        if (
+            !(form instanceof HTMLFormElement) ||
+            !form.matches("form[data-logout-form]")
+        ) {
+            return;
+        }
+
+        const content = form.closest<HTMLElement>(
+            '[data-slot="dialog-content"]',
+        );
+        content?.setAttribute("aria-busy", "true");
+        content
+            ?.querySelectorAll<HTMLButtonElement>("button")
+            .forEach((button) => (button.disabled = true));
+
+        // Prevent the dialog from closing when logging out
+        const dismissLock = new AbortController();
+        const { signal } = dismissLock;
+        const overlay = content?.parentElement?.querySelector<HTMLElement>(
+            '[data-slot="dialog-overlay"]',
+        );
+
+        overlay?.addEventListener(
+            "click",
+            (event) => {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+            },
+            { capture: true, signal },
+        );
+        window.addEventListener(
+            "keydown",
+            (event) => {
+                if (event.key !== "Escape") return;
+                event.preventDefault();
+                event.stopImmediatePropagation();
+            },
+            { capture: true, signal },
+        );
+        document.addEventListener(
+            "astro:before-swap",
+            () => dismissLock.abort(),
+            { once: true, signal },
+        );
+        window.addEventListener("pagehide", () => dismissLock.abort(), {
+            once: true,
+            signal,
+        });
+    });
+</script>
