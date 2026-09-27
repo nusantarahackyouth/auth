@@ -133,6 +133,82 @@ const { fallback = "animate" } = Astro.props;
             );
         }
 
+        document.addEventListener("astro:before-preparation", (event) => {
+            const originalLoader = event.loader;
+
+            event.loader = async () => {
+                const originalFetch = window.fetch;
+                const replayNativeNavigation = () => {
+                    const source = event.sourceElement;
+                    const submitter =
+                        source instanceof HTMLButtonElement ||
+                        (source instanceof HTMLInputElement &&
+                            ["submit", "image"].includes(source.type))
+                            ? source
+                            : undefined;
+                    const form =
+                        source instanceof HTMLFormElement
+                            ? source
+                            : submitter?.form ??
+                              (source instanceof Element
+                                  ? source.closest("form")
+                                  : null);
+
+                    if (event.formData && form) {
+                        // Let the browser replay the original method, body, and
+                        // redirect chain without the client router intercepting it.
+                        form.dataset.astroReload = "";
+                        if (submitter) submitter.disabled = false;
+                        form.requestSubmit(submitter);
+                    } else {
+                        location.assign(event.to.href);
+                    }
+                };
+                const challengeAwareFetch: typeof window.fetch = async (
+                    input,
+                    init,
+                ) => {
+                    const requestUrl = new URL(
+                        input instanceof Request ? input.url : input.toString(),
+                        location.href,
+                    );
+                    const targetsNavigation =
+                        requestUrl.origin === event.to.origin &&
+                        requestUrl.pathname === event.to.pathname &&
+                        requestUrl.search === event.to.search;
+                    const response = await originalFetch(input, {
+                        ...init,
+                        redirect: targetsNavigation ? "manual" : init?.redirect,
+                    });
+                    const requiresNativeNavigation =
+                        response.type === "opaqueredirect" ||
+                        response.headers
+                            .get("cf-mitigated")
+                            ?.toLowerCase() === "challenge";
+
+                    if (targetsNavigation && requiresNativeNavigation) {
+                        replayNativeNavigation();
+
+                        // Keep Astro's transition loader pending until the
+                        // native navigation replaces this document.
+                        await new Promise<void>(() => {});
+                        throw new Error("Native navigation did not start");
+                    }
+
+                    return response;
+                };
+
+                window.fetch = challengeAwareFetch;
+                try {
+                    await originalLoader();
+                } finally {
+                    if (window.fetch === challengeAwareFetch) {
+                        window.fetch = originalFetch;
+                    }
+                }
+            };
+        });
+
         document.addEventListener("astro:before-swap", (event) => {
             const isDark = document.documentElement.classList.contains("dark");
             event.newDocument.documentElement.classList.toggle("dark", isDark);
