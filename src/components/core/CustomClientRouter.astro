@@ -155,8 +155,8 @@ const { fallback = "animate" } = Astro.props;
                                   : null);
 
                     if (event.formData && form) {
-                        // Let the browser replay the original method, body, and
-                        // redirect chain without the client router intercepting it.
+                        // Let the browser replay the challenged request without
+                        // the client router intercepting it.
                         form.dataset.astroReload = "";
                         if (submitter) submitter.disabled = false;
                         form.requestSubmit(submitter);
@@ -176,17 +176,13 @@ const { fallback = "animate" } = Astro.props;
                         requestUrl.origin === event.to.origin &&
                         requestUrl.pathname === event.to.pathname &&
                         requestUrl.search === event.to.search;
-                    const response = await originalFetch(input, {
-                        ...init,
-                        redirect: targetsNavigation ? "manual" : init?.redirect,
-                    });
-                    const requiresNativeNavigation =
-                        response.type === "opaqueredirect" ||
+                    const response = await originalFetch(input, init);
+                    const isCloudflareChallenge =
                         response.headers
                             .get("cf-mitigated")
                             ?.toLowerCase() === "challenge";
 
-                    if (targetsNavigation && requiresNativeNavigation) {
+                    if (targetsNavigation && isCloudflareChallenge) {
                         replayNativeNavigation();
 
                         // Keep Astro's transition loader pending until the

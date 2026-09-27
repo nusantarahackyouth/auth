@@ -1,6 +1,4 @@
 ---
-import { actions } from "astro:actions";
-
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
@@ -19,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
         </DialogHeader>
         <DialogFooter>
             <Button data-slot="dialog-close" variant="outline" class="cursor-pointer">Cancel</Button>
-            <form method="post" action={actions.logout} class="contents" data-logout-form>
+            <form method="post" action="/logout" class="contents" data-logout-form>
                 <Button type="submit" variant="destructive" class="cursor-pointer">Logout</Button>
             </form>
         </DialogFooter>
